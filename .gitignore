@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+
+# Coverage and test output
+*.out
+*.cover
+*cover
+*cover.*
+*coverage*
+coverage.out
+
+# Build output
+bin/
+dist/
+tmp/
+
+# IDE
+.vscode/
+.idea/
+
+# OS and logs
+*.log
+.DS_Store
+Thumbs.db
