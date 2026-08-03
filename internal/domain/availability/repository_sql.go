@@ -217,3 +217,146 @@ func (r *SQLRepository) Delete(ctx context.Context, id uint) error {
 
 	return nil
 }
+
+func (r *SQLRepository) HasConflict(ctx context.Context, cleanerID uint, availableDate string, startTime string, endTime string, excludeID uint) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1 
+			FROM cleaner_availability
+			WHERE cleaner_id = $1 
+				AND available_date = $2 
+				AND id <> $3 
+				AND status <> 'unavailable'
+				AND start_time < $4 
+				AND end_time > $5
+		)
+	`
+
+	var conflict bool
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+		availableDate,
+		excludeID,
+		endTime,
+		startTime,
+	).Scan(&conflict)
+
+	if err != nil {
+		return false, err
+	}
+
+	return conflict, nil
+}
+
+func (r *SQLRepository) CreateBlock(ctx context.Context, block *AvailabilityBlock) error {
+	query := `
+		INSERT INTO availability_blocks (
+			cleaner_id,
+			start_at, 
+			end_at, 
+			reason, 
+			created_at,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $5)
+		RETURNING id 	
+	`
+
+	now := time.Now()
+
+	block.CreatedAt = now
+	block.UpdatedAt = now
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		block.CleanerID,
+		block.StartAt,
+		block.EndAt,
+		block.Reason,
+		now,
+	).Scan(&block.ID)
+
+	return err
+}
+
+func (r *SQLRepository) ListBlocksByCleanerID(ctx context.Context, cleanerID uint) ([]AvailabilityBlock, error) {
+	query := `
+		SELECT
+			id, 
+			cleaner_id,
+			start_at,
+			end_at, 
+			reason, 
+			created_at,
+			updated_at
+		FROM availability_blocks
+		WHERE cleaner_id = $1 
+		ORDER BY start_at ASC 	
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, cleanerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var blocks []AvailabilityBlock
+
+	for rows.Next() {
+		var block AvailabilityBlock
+
+		err := rows.Scan(
+			&block.ID,
+			&block.CleanerID,
+			&block.StartAt,
+			&block.EndAt,
+			&block.Reason,
+			&block.CreatedAt,
+			&block.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		blocks = append(blocks, block)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return blocks, nil
+}
+
+func (r *SQLRepository) DeleteBlock(ctx context.Context, blockID uint, cleanerID uint) error {
+	query := ` 
+		DELETE FROM availability_blocks
+		WHERE id = $1 
+			AND cleaner_id = $2
+	`
+
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		blockID,
+		cleanerID,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrAvailabilityNotFound
+	}
+
+	return nil
+}

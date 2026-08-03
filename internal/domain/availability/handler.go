@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	currentUser, err:= identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -48,10 +48,18 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrAvailabilityConflict) {
+		response.Error(
+			w,
+			http.StatusConflict,
+			err.Error(),
+		)
+	}
+
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
-	} 
+	}
 
 	response.JSON(w, http.StatusCreated, availability)
 }
@@ -175,6 +183,23 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrAvailabilityConflict) {
+		response.Error(
+			w,
+			http.StatusConflict,
+			err.Error(),
+		)
+	}
+
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
 	response.JSON(w, http.StatusOK, availability)
 }
 
@@ -228,3 +253,151 @@ func parseIDParam(r *http.Request, name string) (uint, error) {
 	return uint(parsedID), nil
 }
 
+func (h *Handler) CreateBlock(w http.ResponseWriter, r *http.Request) {
+	currentUser, err := identity.FromContext(r.Context())
+	if err != nil {
+		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req CreateAvailabilityBlockRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	block, err := h.service.CreateBlock(r.Context(), currentUser.UserID, req)
+	if errors.Is(err, ErrInvalidInput) {
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response.JSON(w, http.StatusCreated, block)
+}
+
+func (h *Handler) ListBlocks(w http.ResponseWriter, r *http.Request) {
+	currentUser, err := identity.FromContext(r.Context())
+	if err != nil {
+		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	blocks, err := h.service.ListBlocks(r.Context(), currentUser.UserID)
+	if errors.Is(err, ErrInvalidInput) {
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			err.Error(),
+		)
+		return
+	}
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		blocks,
+	)
+}
+
+func (h *Handler) DeleteBlock(w http.ResponseWriter, r *http.Request) {
+	currentUser, err := identity.FromContext(r.Context())
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+		return
+	}
+
+	blockID, err := parseIDParam(r, "blockID")
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			"invalid availability block id",
+		)
+		return
+	}
+
+	err = h.service.DeleteBlock(
+		r.Context(),
+		blockID,
+		currentUser.UserID,
+	)
+	if errors.Is(err, ErrInvalidInput) {
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			err.Error(),
+		)
+		return
+	}
+
+	if errors.Is(err, ErrAvailabilityNotFound) {
+		response.Error(
+			w,
+			http.StatusNotFound,
+			err.Error(),
+		)
+		return
+	}
+
+	if errors.Is(err, ErrForbidden) {
+		response.Error(
+			w,
+			http.StatusForbidden,
+			err.Error(),
+		)
+		return
+	}
+
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		map[string]string{
+			"message": "availability block deleted",
+		},
+	)
+}

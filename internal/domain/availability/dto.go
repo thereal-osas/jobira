@@ -15,3 +15,9 @@ type UpdateAvailabilityRequest struct {
 	Status        string `json:"status"`
 	Notes         string `json:"notes"`
 }
+
+type CreateAvailabilityBlockRequest struct {
+	StartAt string `json:"start_at"`
+	EndAt   string `json:"end_at"`
+	Reason  string `json:"reason"`
+}
