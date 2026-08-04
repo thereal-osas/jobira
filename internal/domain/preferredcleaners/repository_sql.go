@@ -47,7 +47,7 @@ func (r *SQLRepository) Exists(ctx context.Context, clientID uint, cleanerID uin
 	var exists bool
 
 	err := r.db.QueryRowContext(
-		ctx, 
+		ctx,
 		query,
 		clientID,
 		cleanerID,
@@ -116,5 +116,10 @@ func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]Pr
 		cleaners = append(cleaners, cleaner)
 	}
 
-	return cleaners, nil  
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return cleaners, nil
+
 }

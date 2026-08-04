@@ -2,26 +2,32 @@ package preferredcleaners
 
 import (
 	"context"
-
-	blockedcleanersdomain "github.com/rodrigueghenda/jobira/internal/domain/blockedcleaners"
 )
 
+type BlockChecker interface {
+	IsBlocked(
+		ctx context.Context,
+		clientID uint,
+		cleanerID uint,
+	) (bool, error)
+}
+
 type Service struct {
-	repo 		 Repository
-	blockChecker *blockedcleanersdomain.Checker
+	repo         Repository
+	blockChecker BlockChecker
 }
 
 func NewService(
 	repo Repository,
-	blockChecker *blockedcleanersdomain.Checker,
+	blockChecker BlockChecker,
 ) *Service {
 	return &Service{
-		repo: repo,
+		repo:         repo,
 		blockChecker: blockChecker,
 	}
 }
 
-func (s *Service) Create(ctx context.Context, clientID uint, req CreatePreferredCleanerRequest) (*PreferredCleaners, error ) {
+func (s *Service) Create(ctx context.Context, clientID uint, req CreatePreferredCleanerRequest) (*PreferredCleaners, error) {
 	if clientID == 0 || req.CleanerID == 0 {
 		return nil, ErrInvalidInput
 	}
@@ -31,7 +37,7 @@ func (s *Service) Create(ctx context.Context, clientID uint, req CreatePreferred
 	}
 
 	if s.blockChecker != nil {
-		blocked, err  := s.blockChecker.IsBlocked(ctx, clientID, req.CleanerID)
+		blocked, err := s.blockChecker.IsBlocked(ctx, clientID, req.CleanerID)
 		if err != nil {
 			return nil, err
 		}
@@ -43,7 +49,7 @@ func (s *Service) Create(ctx context.Context, clientID uint, req CreatePreferred
 
 	exists, err := s.repo.Exists(ctx, clientID, req.CleanerID)
 	if err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	if exists {
@@ -51,7 +57,7 @@ func (s *Service) Create(ctx context.Context, clientID uint, req CreatePreferred
 	}
 
 	preferred := &PreferredCleaners{
-		ClientID: clientID,
+		ClientID:  clientID,
 		CleanerID: req.CleanerID,
 	}
 

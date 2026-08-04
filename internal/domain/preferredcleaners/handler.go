@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	currentUser, err := identity.FromContext(r.Context()) 
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -60,17 +60,41 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListMine(w http.ResponseWriter, r *http.Request) {
 	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
-		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		response.Error(
+			w,
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
 		return
 	}
 
-	preferred, err := h.service.ListMine(r.Context(), currentUser.UserID)
+	preferred, err := h.service.ListMine(
+		r.Context(),
+		currentUser.UserID,
+	)
 	if errors.Is(err, ErrInvalidInput) {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			err.Error(),
+		)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, preferred)
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		preferred,
+	)
 }
 
 func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
