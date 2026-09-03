@@ -47,8 +47,7 @@ func (s *Service) CreatePlan(ctx context.Context, req CreatePlanRequest) (*Admin
 	return plan, nil
 }
 
-
-func (s *Service) UpdatePlan(ctx context.Context, planID uint, req UpdatePlanRequest) error  {
+func (s *Service) UpdatePlan(ctx context.Context, planID uint, req UpdatePlanRequest) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.RoleType = strings.TrimSpace(req.RoleType)
 	req.BillingInterval = strings.TrimSpace(req.BillingInterval)
@@ -62,7 +61,7 @@ func (s *Service) UpdatePlan(ctx context.Context, planID uint, req UpdatePlanReq
 	}
 
 	plan := &AdminSubscriptionPlan{
-		ID: 			  planID,
+		ID:               planID,
 		Name:             req.Name,
 		RoleType:         req.RoleType,
 		PricePence:       req.PricePence,
@@ -75,7 +74,6 @@ func (s *Service) UpdatePlan(ctx context.Context, planID uint, req UpdatePlanReq
 
 	return s.repo.UpdatePlan(ctx, plan)
 
-
 }
 func (s *Service) DisablePlan(ctx context.Context, planID uint) error {
 	if planID == 0 {
@@ -84,8 +82,6 @@ func (s *Service) DisablePlan(ctx context.Context, planID uint) error {
 
 	return s.repo.DisablePlan(ctx, planID)
 }
-
-
 
 func (s *Service) ListUserSubscriptions(ctx context.Context) ([]AdminUserSubscription, error) {
 	return s.repo.ListUserSubscriptions(ctx)
@@ -99,7 +95,6 @@ func (s *Service) GetUserSubscriptions(ctx context.Context, userID uint) (*Admin
 	return s.repo.GetUserSubscriptions(ctx, userID)
 }
 
-
 func (s *Service) CreateOrUpdateUserSubscriptions(ctx context.Context, userID uint, req UpdateUserSubscriptionRequest) error {
 	req.Status = strings.TrimSpace(req.Status)
 
@@ -108,7 +103,7 @@ func (s *Service) CreateOrUpdateUserSubscriptions(ctx context.Context, userID ui
 	}
 
 	if !isAllowedStatus(req.Status) {
-		return ErrInvalidInput
+		return ErrInvalidStatus
 	}
 
 	return s.repo.CreateOrUpdateUserSubscription(ctx, userID, req.PlanID, req.Status)
@@ -116,9 +111,9 @@ func (s *Service) CreateOrUpdateUserSubscriptions(ctx context.Context, userID ui
 
 func isAllowedStatus(status string) bool {
 	switch status {
-	case "trial", "active", "past_due", "cancelled", "expired": 
-		return true 
-	default: 
-		return false 
+	case "trial", "active", "past_due", "cancelled", "expired":
+		return true
+	default:
+		return false
 	}
 }

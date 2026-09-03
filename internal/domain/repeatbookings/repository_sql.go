@@ -82,6 +82,8 @@ func (r *SQLRepository) CreateInvitation(ctx context.Context, jobID uint, client
 
 	return err
 }
+
+
 func (r *SQLRepository) CreateRepeatBooking(ctx context.Context, booking *RepeatBooking) error {
 	query := `
 		INSERT INTO repeat_bookings (
@@ -116,6 +118,8 @@ func (r *SQLRepository) CreateRepeatBooking(ctx context.Context, booking *Repeat
 	)
 
 }
+
+
 func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]RepeatBooking, error) {
 	query := `
 			SELECT 
@@ -206,26 +210,41 @@ func (r *SQLRepository) GetOriginBooking(ctx context.Context, bookingID uint) (*
 
 	return &booking, nil
 }
-
-func (r *SQLRepository) CreateRepeatBookings(ctx context.Context, booking *BookingSnapshot, scheduledAt time.Time) (uint, error) {
+func (r *SQLRepository) CreateRepeatBookings(
+	ctx context.Context,
+	booking *BookingSnapshot,
+	scheduledAt time.Time,
+	scheduledEndAt time.Time,
+) (uint, error) {
 	query := `
 		INSERT INTO bookings (
-			job_id, 
-			application_id, 
+			job_id,
+			application_id,
 			client_id,
 			cleaner_id,
 			status,
 			scheduled_at,
+			scheduled_end_at,
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, $4, 'pending', $5, $6, $6)
-		RETURNING id	
+		VALUES (
+			$1,
+			$2,
+			$3,
+			$4,
+			'pending',
+			$5,
+			$6,
+			$7,
+			$7
+		)
+		RETURNING id
 	`
 
 	now := time.Now()
 
-	var NewBookingID uint
+	var newBookingID uint
 
 	err := r.db.QueryRowContext(
 		ctx,
@@ -235,10 +254,13 @@ func (r *SQLRepository) CreateRepeatBookings(ctx context.Context, booking *Booki
 		booking.ClientID,
 		booking.CleanerID,
 		scheduledAt,
+		scheduledEndAt,
 		now,
-	).Scan(&NewBookingID)
+	).Scan(
+		&newBookingID,
+	)
 
-	return NewBookingID, err
+	return newBookingID, err
 }
 
 func (r *SQLRepository) CreateBookAgainRequest(ctx context.Context, request *RepeatBookingRequest) error {
@@ -250,12 +272,13 @@ func (r *SQLRepository) CreateBookAgainRequest(ctx context.Context, request *Rep
 			cleaner_id,
 			job_id,
 			scheduled_at,
+			scheduled_end_at,
 			status, 
 			message, 
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 		RETURNING id, created_at, updated_at	
 	`
 
@@ -270,6 +293,7 @@ func (r *SQLRepository) CreateBookAgainRequest(ctx context.Context, request *Rep
 		request.CleanerID,
 		request.JobID,
 		request.ScheduledAt,
+		request.ScheduledEndAt,
 		request.Status,
 		request.Message,
 		now,
@@ -280,4 +304,112 @@ func (r *SQLRepository) CreateBookAgainRequest(ctx context.Context, request *Rep
 	)
 
 	return err
+}
+
+func (r *SQLRepository) CreateBookAgainTransaction(
+	ctx context.Context,
+	input BookAgainTransaction,
+) (*RepeatBookingRequest, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	committed := false
+
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	now := time.Now()
+
+	createBookingQuery := `
+		INSERT INTO bookings (
+			job_id,
+			application_id,
+			client_id,
+			cleaner_id,
+			status,
+			scheduled_at,
+			created_at,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, 'pending', $5, $6, $6)
+		RETURNING id
+	`
+
+	var newBookingID uint
+
+	err = tx.QueryRowContext(
+		ctx,
+		createBookingQuery,
+		input.JobID,
+		input.ApplicationID,
+		input.ClientID,
+		input.CleanerID,
+		input.ScheduledAt,
+		now,
+	).Scan(&newBookingID)
+	if err != nil {
+		return nil, err
+	}
+
+	createRequestQuery := `
+		INSERT INTO repeat_booking_requests (
+			original_booking_id,
+			new_booking_id,
+			client_id,
+			cleaner_id,
+			job_id,
+			scheduled_at,
+			status,
+			message,
+			created_at,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+		RETURNING id, created_at, updated_at
+	`
+
+	request := &RepeatBookingRequest{
+		OriginalBookingID: input.OriginalBookingID,
+		NewBookingID:      &newBookingID,
+		ClientID:          input.ClientID,
+		CleanerID:         input.CleanerID,
+		JobID:             input.JobID,
+		ScheduledAt:       input.ScheduledAt,
+		Status:            input.Status,
+		Message:           input.Message,
+	}
+
+	err = tx.QueryRowContext(
+		ctx,
+		createRequestQuery,
+		request.OriginalBookingID,
+		request.NewBookingID,
+		request.ClientID,
+		request.CleanerID,
+		request.JobID,
+		request.ScheduledAt,
+		request.Status,
+		request.Message,
+		now,
+	).Scan(
+		&request.ID,
+		&request.CreatedAt,
+		&request.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	committed = true
+
+	return request, nil
 }

@@ -92,7 +92,7 @@ func (h *Handler) UpdateMineStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req UpdateSubcriptionStatusRequest
+	var req UpdateSubscriptionStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid request body")
 		return

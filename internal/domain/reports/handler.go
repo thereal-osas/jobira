@@ -36,7 +36,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	report, err := h.service.Create(r.Context(), currentUser.UserID, req)
 
 	if errors.Is(err, ErrInvalidInput) ||
-		errors.Is(err, ErrInvalidReportStatus) {
+		errors.Is(err, ErrInvalidReportType) {
 		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

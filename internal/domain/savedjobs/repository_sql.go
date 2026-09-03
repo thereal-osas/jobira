@@ -85,6 +85,10 @@ func (r *SQLRepository) ListByUserID(ctx context.Context, userID uint) ([]SavedJ
 		savedJobs = append(savedJobs, savedJob)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return savedJobs, nil
 }
 

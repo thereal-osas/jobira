@@ -11,7 +11,7 @@ type SQLRepository struct {
 	db *sql.DB
 }
 
-func NEWSQLRepository(db *sql.DB) *SQLRepository {
+func NewSQLRepository(db *sql.DB) *SQLRepository {
 	return &SQLRepository{db: db}
 }
 
@@ -91,7 +91,12 @@ func (r *SQLRepository) GetStripeCustomerID(ctx context.Context, userID uint) (s
 	return stripeCustomerID, nil
 }
 
-func (r *SQLRepository) UpsertBillingCustomer(ctx context.Context, userID uint, email string, stripeCustomerID string) error {
+func (r *SQLRepository) UpsertBillingCustomer(
+	ctx context.Context,
+	userID uint,
+	email string,
+	stripeCustomerID string,
+) error {
 	query := `
 		INSERT INTO billing_customers (
 			user_id,
@@ -100,16 +105,23 @@ func (r *SQLRepository) UpsertBillingCustomer(ctx context.Context, userID uint, 
 			created_at,
 			updated_at
 		)
-		VALES ($1, $2, $3, $4 $4)
+		VALUES ($1, $2, $3, $4, $4)
 		ON CONFLICT (user_id)
 		DO UPDATE SET
-			emial = EXCLUDED email,
+			email = EXCLUDED.email,
 			stripe_customer_id = EXCLUDED.stripe_customer_id,
-			updated_at = EXCLUDED.updated_at 
-
+			updated_at = EXCLUDED.updated_at
 	`
 
-	_, err := r.db.ExecContext(ctx, query, userID, email, stripeCustomerID, time.Now())
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		userID,
+		email,
+		stripeCustomerID,
+		time.Now(),
+	)
+
 	return err
 }
 
@@ -127,7 +139,7 @@ func (r *SQLRepository) SaveCheckoutSession(ctx context.Context, record *Checkou
 		)
 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		REURNING id, created_at, updated_at
+		RETURNING id, created_at, updated_at
 	`
 
 	now := time.Now()
@@ -152,18 +164,19 @@ func (r *SQLRepository) SaveCheckoutSession(ctx context.Context, record *Checkou
 
 }
 
-func (r *SQLRepository) MarkCheckoutSessionComplete(ctx context.Context, stripeSessionID string, stripeCustomerID string, stripeSubscriptionID string) error {
+func (r *SQLRepository) MarkCheckoutSessionComplete(ctx context.Context, stripeSessionID string, stripeCustomerID string, stripeSubscriptionID string) (bool, error) {
 	query := `
 		UPDATE billing_checkout_sessions
 		SET
-			status = 'completed', 
+			status = 'completed',
 			stripe_customer_id = $1,
 			stripe_subscription_id = $2,
 			updated_at = $3
-		WHERE stripe_session_id = $4	
+		WHERE stripe_session_id = $4
+		  AND status <> 'completed'
 	`
 
-	_, err := r.db.ExecContext(
+	result, err := r.db.ExecContext(
 		ctx,
 		query,
 		stripeCustomerID,
@@ -171,26 +184,115 @@ func (r *SQLRepository) MarkCheckoutSessionComplete(ctx context.Context, stripeS
 		time.Now(),
 		stripeSessionID,
 	)
+	if err != nil {
+		return false, err
+	}
 
-	return err
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	if rowsAffected > 0 {
+		return true, nil
+	}
+
+	var status string
+
+	err = r.db.QueryRowContext(
+		ctx,
+		`
+			SELECT status
+			FROM billing_checkout_sessions
+			WHERE stripe_session_id = $1
+		`,
+		stripeSessionID,
+	).Scan(&status)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, ErrCheckoutSessionNotFound
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	if status == "completed" {
+		return false, nil
+	}
+
+	return false, nil
 }
 
-func (r *SQLRepository) ActivateUserSubscription(ctx context.Context, userID uint, planID uint, stripeSubscriptionID string) error {
+func (r *SQLRepository) MarkCheckoutSessionExpired(ctx context.Context, stripeSessionID string) error {
+	query := `
+		UPDATE billing_checkout_sessions
+		SET
+			status = 'expired',
+			updated_at = $1
+		WHERE stripe_session_id = $2
+		  AND status <> 'completed'
+		  AND status <> 'expired'
+	`
+
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		time.Now(),
+		stripeSessionID,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *SQLRepository) ActivateUserSubscription(
+	ctx context.Context,
+	userID uint,
+	planID uint,
+	stripeSubscriptionID string,
+	periodStart time.Time,
+	periodEnd time.Time,
+) error {
+	if periodStart.IsZero() {
+		periodStart = time.Now()
+	}
+
+	if periodEnd.IsZero() {
+		periodEnd = periodStart
+	}
+
 	query := `
 		UPDATE user_subscriptions
 		SET
 			plan_id = $1,
 			status = 'active',
-			current_period_start = $2, 
-			current_period_end = $3,
-			updated_at = $2
-		WHERE user_id = $4	
+			stripe_subscription_id = $2,
+			current_period_start = $3,
+			current_period_end = $4,
+			updated_at = $5
+		WHERE user_id = $6
 	`
 
 	now := time.Now()
-	periodEnd := now.AddDate(0, 1, 0)
 
-	result, err := r.db.ExecContext(ctx, query, planID, stripeSubscriptionID, now, periodEnd, userID)
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		planID,
+		stripeSubscriptionID,
+		periodStart,
+		periodEnd,
+		now,
+		userID,
+	)
 	if err != nil {
 		return err
 	}
@@ -208,7 +310,7 @@ func (r *SQLRepository) ActivateUserSubscription(ctx context.Context, userID uin
 		INSERT INTO user_subscriptions (
 			user_id,
 			plan_id,
-			status, 
+			status,
 			stripe_subscription_id,
 			trial_started_at,
 			current_period_start,
@@ -216,10 +318,30 @@ func (r *SQLRepository) ActivateUserSubscription(ctx context.Context, userID uin
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, 'active' $3, $4, $4, $5, $4, $4)
+		VALUES (
+			$1,
+			$2,
+			'active',
+			$3,
+			NULL,
+			$4,
+			$5,
+			$6,
+			$6
+		)
 	`
 
-	_, err = r.db.ExecContext(ctx, insertQuery, userID, planID, stripeSubscriptionID, now, periodEnd)
+	_, err = r.db.ExecContext(
+		ctx,
+		insertQuery,
+		userID,
+		planID,
+		stripeSubscriptionID,
+		periodStart,
+		periodEnd,
+		now,
+	)
+
 	return err
 }
 
@@ -239,6 +361,53 @@ func (r *SQLRepository) UpdateUserSubscriptionStatusByCustomer(ctx context.Conte
 
 	_, err := r.db.ExecContext(ctx, query, status, time.Now(), stripeCustomerID)
 	return err
+}
+
+func (r *SQLRepository) UpdateUserSubscriptionRenewalByCustomer(
+	ctx context.Context,
+	stripeCustomerID string,
+	stripeSubscriptionID string,
+	periodStart time.Time,
+	periodEnd time.Time,
+) error {
+	query := `
+		UPDATE user_subscriptions
+		SET
+			status = 'active',
+			stripe_subscription_id = $1,
+			current_period_start = $2,
+			current_period_end = $3,
+			updated_at = $4
+		WHERE user_id = (
+			SELECT user_id
+			FROM billing_customers
+			WHERE stripe_customer_id = $5
+		)
+	`
+
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		stripeSubscriptionID,
+		periodStart,
+		periodEnd,
+		time.Now(),
+		stripeCustomerID,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrSubscriptionNotFound
+	}
+
+	return nil
 }
 
 func (r *SQLRepository) GetPromoCode(ctx context.Context, code string) (*PromoCode, error) {

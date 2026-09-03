@@ -95,13 +95,31 @@ func (h *Handler) ListMine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requests, err := h.service.ListMine(r.Context(), currentUser.UserID)
+	requests, err := h.service.ListMine(
+		r.Context(),
+		currentUser.UserID,
+	)
+
 	if errors.Is(err, ErrInvalidInput) {
 		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, requests)
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		requests,
+	)
+
 }
 
 func (h *Handler) ListAll(w http.ResponseWriter, r *http.Request) {
@@ -170,9 +188,13 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 func parseIDParam(r *http.Request, name string) (uint, error) {
 	rawID := chi.URLParam(r, name)
 
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil {
-		return 0, err
+	parsedID, err := strconv.ParseUint(
+		rawID,
+		10,
+		64,
+	)
+	if err != nil || parsedID == 0 {
+		return 0, ErrInvalidInput
 	}
 
 	return uint(parsedID), nil

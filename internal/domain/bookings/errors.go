@@ -8,4 +8,5 @@ var (
 	ErrBookingExists   = errors.New("booking already exists")
 	ErrForbidden       = errors.New("forbidden")
 	ErrInvalidStatus   = errors.New("invalid booking status")
+	ErrBookingConflict = errors.New("cleaner already has a booking this time")
 )

@@ -14,6 +14,7 @@ import (
 
 	portalsession "github.com/stripe/stripe-go/v84/billingportal/session"
 	checkoutsession "github.com/stripe/stripe-go/v84/checkout/session"
+	"github.com/stripe/stripe-go/v84/subscription"
 	"github.com/stripe/stripe-go/v84/webhook"
 )
 
@@ -25,16 +26,33 @@ type StripeConfig struct {
 	PortalReturnURL string
 }
 
+type StripeSubscriptionRetriever interface {
+	Get(subscriptionID string) (*stripe.Subscription, error)
+}
+
+type stripeSubscriptionRetriever struct{}
+
 type Service struct {
-	repo Repository
-	cfg  StripeConfig
+	repo                  Repository
+	cfg                   StripeConfig
+	subscriptionRetriever StripeSubscriptionRetriever
 }
 
 func NewService(repo Repository, cfg StripeConfig) *Service {
 	return &Service{
-		repo: repo,
-		cfg:  cfg,
+		repo:                  repo,
+		cfg:                   cfg,
+		subscriptionRetriever: &stripeSubscriptionRetriever{},
 	}
+}
+
+func (r *stripeSubscriptionRetriever) Get(
+	subscriptionID string,
+) (*stripe.Subscription, error) {
+	return subscription.Get(
+		subscriptionID,
+		nil,
+	)
 }
 
 func (s *Service) CreateCheckoutSession(ctx context.Context, userID uint, req CreateCheckoutSessionRequest) (*CheckoutSessionResponse, error) {
@@ -160,18 +178,22 @@ func (s *Service) CreateBillingPortalSession(ctx context.Context, userID uint) (
 		URL: session.URL,
 	}, nil
 }
-
 func (s *Service) HandleWebhook(ctx context.Context, payload []byte, signatureHeader string) error {
 	if s.cfg.WebhookSecret == "" {
 		return ErrWebhookInvalid
 	}
 
-	event, err := webhook.ConstructEvent(payload, signatureHeader, s.cfg.WebhookSecret)
+	event, err := webhook.ConstructEvent(
+		payload,
+		signatureHeader,
+		s.cfg.WebhookSecret,
+	)
 	if err != nil {
 		return ErrWebhookInvalid
 	}
 
-	if event.Type == "checkout.session.completed" {
+	switch event.Type {
+	case "checkout.session.completed":
 		var session stripe.CheckoutSession
 
 		if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
@@ -198,12 +220,35 @@ func (s *Service) HandleWebhook(ctx context.Context, payload []byte, signatureHe
 			stripeSubscriptionID = session.Subscription.ID
 		}
 
-		if err := s.repo.MarkCheckoutSessionComplete(
+		if stripeCustomerID == "" || stripeSubscriptionID == "" {
+			return ErrWebhookInvalid
+		}
+
+		firstCompletion, err := s.repo.MarkCheckoutSessionComplete(
 			ctx,
 			session.ID,
 			stripeCustomerID,
 			stripeSubscriptionID,
-		); err != nil {
+		)
+		if err != nil {
+			return err
+		}
+
+		if !firstCompletion {
+			return nil
+		}
+
+		stripeSubscription, err := s.subscriptionRetriever.Get(
+			stripeSubscriptionID,
+		)
+		if err != nil {
+			return err
+		}
+
+		periodStart, periodEnd, err := subscriptionPeriod(
+			stripeSubscription,
+		)
+		if err != nil {
 			return err
 		}
 
@@ -212,48 +257,160 @@ func (s *Service) HandleWebhook(ctx context.Context, payload []byte, signatureHe
 			userID,
 			planID,
 			stripeSubscriptionID,
+			periodStart,
+			periodEnd,
 		)
-	}
 
-	if event.Type == "customer.subscription.deleted" {
+	case "customer.subscription.deleted":
 		var subscription stripe.Subscription
 
 		if err := json.Unmarshal(event.Data.Raw, &subscription); err != nil {
 			return err
 		}
 
-		stripeCustomerID := ""
-		if subscription.Customer != nil {
-			stripeCustomerID = subscription.Customer.ID
-		}
-
-		if stripeCustomerID == "" {
+		if subscription.Customer == nil ||
+			strings.TrimSpace(subscription.Customer.ID) == "" {
 			return nil
 		}
 
-		return s.repo.UpdateUserSubscriptionStatusByCustomer(ctx, stripeCustomerID, "cancelled")
-	}
+		return s.repo.UpdateUserSubscriptionStatusByCustomer(
+			ctx,
+			subscription.Customer.ID,
+			"cancelled",
+		)
 
-	if event.Type == "customer.subscription.updated" {
+	case "customer.subscription.updated":
 		var subscription stripe.Subscription
 
 		if err := json.Unmarshal(event.Data.Raw, &subscription); err != nil {
 			return err
 		}
 
-		stripeCustomerID := ""
-		if subscription.Customer != nil {
-			stripeCustomerID = subscription.Customer.ID
-		}
-
-		if stripeCustomerID == "" {
+		if subscription.Customer == nil ||
+			strings.TrimSpace(subscription.Customer.ID) == "" {
 			return nil
 		}
 
-		return s.repo.UpdateUserSubscriptionStatusByCustomer(ctx, stripeCustomerID, string(subscription.Status))
+		return s.repo.UpdateUserSubscriptionStatusByCustomer(
+			ctx,
+			subscription.Customer.ID,
+			string(subscription.Status),
+		)
+
+	case "invoice.paid":
+		var invoice stripe.Invoice
+
+		if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
+			return err
+		}
+
+		if invoice.Customer == nil ||
+			strings.TrimSpace(invoice.Customer.ID) == "" {
+			return nil
+		}
+
+		if invoice.Parent == nil ||
+			invoice.Parent.SubscriptionDetails == nil ||
+			invoice.Parent.SubscriptionDetails.Subscription == nil ||
+			strings.TrimSpace(
+				invoice.Parent.SubscriptionDetails.Subscription.ID,
+			) == "" {
+			return nil
+		}
+
+		stripeSubscriptionID :=
+			invoice.Parent.SubscriptionDetails.Subscription.ID
+
+		stripeSubscription, err :=
+			s.subscriptionRetriever.Get(
+				stripeSubscriptionID,
+			)
+		if err != nil {
+			return err
+		}
+
+		periodStart, periodEnd, err :=
+			subscriptionPeriod(
+				stripeSubscription,
+			)
+		if err != nil {
+			return err
+		}
+
+		return s.repo.UpdateUserSubscriptionRenewalByCustomer(
+			ctx,
+			invoice.Customer.ID,
+			stripeSubscriptionID,
+			periodStart,
+			periodEnd,
+		)
+
+	case "invoice.payment_failed":
+		var invoice stripe.Invoice
+
+		if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
+			return err
+		}
+
+		if invoice.Customer == nil ||
+			strings.TrimSpace(invoice.Customer.ID) == "" {
+			return nil
+		}
+
+		return s.repo.UpdateUserSubscriptionStatusByCustomer(
+			ctx,
+			invoice.Customer.ID,
+			"past_due",
+		)
+
+	case "checkout.session.expired":
+		var session stripe.CheckoutSession
+
+		if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
+			return err
+		}
+
+		if strings.TrimSpace(session.ID) == "" {
+			return nil
+		}
+
+		return s.repo.MarkCheckoutSessionExpired(
+			ctx,
+			session.ID,
+		)
+
+	default:
+		return nil
+	}
+}
+
+func subscriptionPeriod(
+	subscription *stripe.Subscription,
+) (time.Time, time.Time, error) {
+	if subscription == nil ||
+		subscription.Items == nil ||
+		len(subscription.Items.Data) == 0 ||
+		subscription.Items.Data[0] == nil {
+		return time.Time{}, time.Time{}, ErrWebhookInvalid
 	}
 
-	return nil
+	item := subscription.Items.Data[0]
+
+	if item.CurrentPeriodStart <= 0 ||
+		item.CurrentPeriodEnd <= 0 ||
+		item.CurrentPeriodEnd <= item.CurrentPeriodStart {
+		return time.Time{}, time.Time{}, ErrWebhookInvalid
+	}
+
+	return time.Unix(
+			item.CurrentPeriodStart,
+			0,
+		).UTC(),
+		time.Unix(
+			item.CurrentPeriodEnd,
+			0,
+		).UTC(),
+		nil
 }
 
 func metadataUint(metadata map[string]string, key string) (uint, error) {
@@ -269,7 +426,6 @@ func metadataUint(metadata map[string]string, key string) (uint, error) {
 
 	return uint(parsedValue), nil
 }
-
 
 func (s *Service) ValidatePromoCode(ctx context.Context, userID uint, req ValidatePromoCodeRequest) (*ValidatePromoCodeRespone, error) {
 	req.Code = strings.TrimSpace(req.Code)
@@ -306,12 +462,12 @@ func (s *Service) ValidatePromoCode(ctx context.Context, userID uint, req Valida
 	}
 
 	return &ValidatePromoCodeRespone{
-		Code: promo.Code,
-		Valid: true,
-		Description: promo.Description,
-		DiscountType: promo.DiscountType,
-		PercentageOff: promo.PercentageOff,
+		Code:             promo.Code,
+		Valid:            true,
+		Description:      promo.Description,
+		DiscountType:     promo.DiscountType,
+		PercentageOff:    promo.PercentageOff,
 		FixedAmountPence: promo.FixedAmountPence,
-		FreeMonths: promo.FreeMonths,
+		FreeMonths:       promo.FreeMonths,
 	}, nil
 }

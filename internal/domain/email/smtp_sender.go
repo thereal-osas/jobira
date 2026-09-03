@@ -43,7 +43,7 @@ func (s *SMTPSender) Send(ctx context.Context, message EmailMessage) error {
 	rawMessage := []byte(
 		"From: " + s.cfg.From + "\r\n" +
 			"To: " + message.To + "\r\n" +
-			"Subject" + message.Subject + "\r\n" +
+			"Subject: " + message.Subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
 			"Content-Type: text/plain; charset=\"UTF-8\"\r\n" +
 			"\r\n" +

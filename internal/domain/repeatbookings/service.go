@@ -5,25 +5,43 @@ import (
 	"strings"
 	"time"
 
-	blockedcleanersdomain "github.com/rodrigueghenda/jobira/internal/domain/blockedcleaners"
+	availabilitydomain "github.com/rodrigueghenda/jobira/internal/domain/availability"
 	notificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/notifications"
 )
+
+type BlockChecker interface {
+	IsBlocked(
+		ctx context.Context,
+		clientID uint,
+		cleanerID uint,
+	) (bool, error)
+}
+
+type AvailabilityChecker interface {
+	ListByCleanerID(
+		ctx context.Context,
+		cleanerID uint,
+	) ([]availabilitydomain.CleanerAvailability, error)
+}
 
 type Service struct {
 	repo                 Repository
 	notificationsService *notificationsdomain.Service
-	blockChecker         *blockedcleanersdomain.Checker
+	blockChecker         BlockChecker
+	availabilityService  AvailabilityChecker
 }
 
 func NewService(
 	repo Repository,
 	notificationsService *notificationsdomain.Service,
-	blockChecker *blockedcleanersdomain.Checker,
+	blockChecker BlockChecker,
+	availabilityService AvailabilityChecker,
 ) *Service {
 	return &Service{
 		repo:                 repo,
 		notificationsService: notificationsService,
 		blockChecker:         blockChecker,
+		availabilityService:  availabilityService,
 	}
 }
 
@@ -106,53 +124,204 @@ func (s *Service) ListMine(ctx context.Context, clientID uint) ([]RepeatBooking,
 
 	return s.repo.ListByClientID(ctx, clientID)
 }
+func (s *Service) BookingAgain(
+	ctx context.Context,
+	originalBookingID uint,
+	clientID uint,
+	req BookingAgainRequest,
+) (*RepeatBookingRequest, error) {
+	req.ScheduledAt = strings.TrimSpace(
+		req.ScheduledAt,
+	)
 
-func (s *Service) BookingAgain(ctx context.Context, originalBookingID uint, clientID uint, req BookingAgainRequest) (*RepeatBookingRequest, error) {
-	req.Message = strings.TrimSpace(req.Message)
+	req.ScheduledEndAt = strings.TrimSpace(
+		req.ScheduledEndAt,
+	)
 
-	if originalBookingID == 0 || clientID == 0 {
+	req.Message = strings.TrimSpace(
+		req.Message,
+	)
+
+	if originalBookingID == 0 ||
+		clientID == 0 {
 		return nil, ErrInvalidInput
 	}
 
-	if req.ScheduledAt == "" {
+	if req.ScheduledAt == "" ||
+		req.ScheduledEndAt == "" {
 		return nil, ErrInvalidInput
 	}
 
-	scheduledAt, err := time.Parse(time.RFC3339, req.ScheduledAt)
+	scheduledAt, err := time.Parse(
+		time.RFC3339,
+		req.ScheduledAt,
+	)
 	if err != nil {
 		return nil, ErrInvalidInput
 	}
 
-	originalBooking, err := s.repo.GetOriginBooking(ctx, originalBookingID)
+	scheduledEndAt, err := time.Parse(
+		time.RFC3339,
+		req.ScheduledEndAt,
+	)
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+
+	if !scheduledEndAt.After(
+		scheduledAt,
+	) {
+		return nil, ErrInvalidInput
+	}
+
+	if !scheduledAt.After(
+		time.Now(),
+	) {
+		return nil, ErrInvalidInput
+	}
+
+	originalBooking, err :=
+		s.repo.GetOriginBooking(
+			ctx,
+			originalBookingID,
+		)
 	if err != nil {
 		return nil, err
 	}
-	if originalBooking.ClientID != clientID {
+
+	if originalBooking.ClientID !=
+		clientID {
 		return nil, ErrForbidden
 	}
 
-	if originalBooking.Status != "closed" && originalBooking.Status != "completed" {
+	if originalBooking.Status != "closed" &&
+		originalBooking.Status != "completed" {
 		return nil, ErrInvalidInput
 	}
 
-	newBookingID, err := s.repo.CreateRepeatBookings(ctx, originalBooking, scheduledAt)
+	if s.blockChecker != nil {
+		blocked, err :=
+			s.blockChecker.IsBlocked(
+				ctx,
+				clientID,
+				originalBooking.CleanerID,
+			)
+		if err != nil {
+			return nil, err
+		}
+
+		if blocked {
+			return nil, ErrForbidden
+		}
+	}
+
+	if s.availabilityService != nil {
+		availabilityRecords, err :=
+			s.availabilityService.ListByCleanerID(
+				ctx,
+				originalBooking.CleanerID,
+			)
+		if err != nil {
+			return nil, err
+		}
+
+		isAvailable := false
+
+		requestedDate :=
+			scheduledAt.Format(
+				"2006-01-02",
+			)
+
+		requestedStart :=
+			scheduledAt.Format(
+				"15:04",
+			)
+
+		requestedEnd :=
+			scheduledEndAt.Format(
+				"15:04",
+			)
+
+		for _, slot := range availabilityRecords {
+			if slot.AvailableDate !=
+				requestedDate {
+				continue
+			}
+
+			if slot.Status != "available" {
+				continue
+			}
+
+			if requestedStart >=
+				slot.StartTime &&
+				requestedEnd <=
+					slot.EndTime {
+				isAvailable = true
+				break
+			}
+		}
+
+		if !isAvailable {
+			return nil, ErrCleanerUnavailable
+		}
+	}
+
+	newBookingID, err :=
+		s.repo.CreateRepeatBookings(
+			ctx,
+			originalBooking,
+			scheduledAt,
+			scheduledEndAt,
+		)
 	if err != nil {
 		return nil, err
 	}
 
 	request := &RepeatBookingRequest{
 		OriginalBookingID: originalBooking.ID,
-		NewBookingID:      &newBookingID,
-		ClientID:          originalBooking.ClientID,
-		CleanerID:         originalBooking.CleanerID,
-		JobID:             originalBooking.JobID,
-		ScheduledAt:       scheduledAt,
-		Status:            "created",
-		Message:           req.Message,
+
+		NewBookingID: &newBookingID,
+
+		ClientID: originalBooking.ClientID,
+
+		CleanerID: originalBooking.CleanerID,
+
+		JobID: originalBooking.JobID,
+
+		ScheduledAt: scheduledAt,
+
+		ScheduledEndAt: &scheduledEndAt,
+
+		Status: "created",
+
+		Message: req.Message,
 	}
 
-	if err := s.repo.CreateBookAgainRequest(ctx, request); err != nil {
+	if err :=
+		s.repo.CreateBookAgainRequest(
+			ctx,
+			request,
+		); err != nil {
 		return nil, err
+	}
+
+	if s.notificationsService != nil {
+		_, _ =
+			s.notificationsService.Create(
+				ctx,
+				notificationsdomain.CreateNotificationsRequest{
+					UserID: originalBooking.CleanerID,
+
+					Title: "New repeat booking",
+
+					Message: "A previous client has booked you again for " +
+						scheduledAt.Format(
+							"2 January 2006 at 15:04",
+						),
+
+					Type: "repeat_bookings",
+				},
+			)
 	}
 
 	return request, nil

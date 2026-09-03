@@ -4,12 +4,19 @@ import (
 	"context"
 	"sort"
 	"strings"
-
-	
+	"time"
 )
 
 type Service struct {
-	repo Repository
+	repo             Repository
+	portfolioCounter PortfolioCounter
+}
+
+type PortfolioCounter interface {
+	CountPortfolioPhotos(
+		ctx context.Context,
+		userID uint,
+	) (int, error)
 }
 
 func NewService(repo Repository) *Service {
@@ -18,10 +25,29 @@ func NewService(repo Repository) *Service {
 	}
 }
 
+func (s *Service) SetPortfolioCounter(
+	counter PortfolioCounter,
+) {
+	s.portfolioCounter = counter
+}
+
 func (s *Service) Create(ctx context.Context, userID uint, req CreateProfileRequest) (*CleanerProfile, error) {
 	req.Bio = strings.TrimSpace(req.Bio)
 	req.Location = strings.TrimSpace(req.Location)
 	req.ServicesOffered = strings.TrimSpace(req.ServicesOffered)
+	req.AvailabilityStatus = strings.TrimSpace(req.AvailabilityStatus)
+
+	if req.AvailabilityStatus == "" {
+		req.AvailabilityStatus = "available_immediately"
+	}
+
+	if !isAllowedAvailabilityStatus(req.AvailabilityStatus) {
+		return nil, ErrInvalidAvailabilityStatus
+	}
+
+	if req.TravelRadiusMiles <= 0 {
+		req.TravelRadiusMiles = 10
+	}
 
 	if userID == 0 {
 		return nil, ErrInvalidInput
@@ -34,10 +60,12 @@ func (s *Service) Create(ctx context.Context, userID uint, req CreateProfileRequ
 	profile := &CleanerProfile{
 		UserID:             userID,
 		Bio:                req.Bio,
-		Country: 			req.Country,
-		City: 				req.City,
-		Region: 			req.Region,
-		PostcodeArea: 		req.PostcodeArea,	
+		Country:            req.Country,
+		City:               req.City,
+		Region:             req.Region,
+		PostcodeArea:       req.PostcodeArea,
+		AvailabilityStatus: req.AvailabilityStatus,
+		TravelRadiusMiles:  req.TravelRadiusMiles,
 		Location:           req.Location,
 		YearsExperience:    req.YearsExperience,
 		HourlyRate:         req.HourlyRate,
@@ -48,7 +76,7 @@ func (s *Service) Create(ctx context.Context, userID uint, req CreateProfileRequ
 
 	if err := s.repo.Create(ctx, profile); err != nil {
 		return nil, err
-	} 
+	}
 
 	return profile, nil
 }
@@ -61,70 +89,104 @@ func (s *Service) GetMine(ctx context.Context, userID uint) (*CleanerProfile, er
 	return s.repo.GetByUserID(ctx, userID)
 }
 
+func (s *Service) GetMyProfileStrength(
+	ctx context.Context,
+	userID uint,
+) (*ProfileStrength, error) {
+	if userID == 0 {
+		return nil, ErrInvalidInput
+	}
+
+	profile, err := s.repo.GetByUserID(
+		ctx,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	portfolioPhotoCount := 0
+
+	if s.portfolioCounter != nil {
+		portfolioPhotoCount, err = s.portfolioCounter.CountPortfolioPhotos(
+			ctx,
+			userID,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	strength := calculateProfilesStrength(
+		profile,
+		portfolioPhotoCount,
+	)
+
+	return &strength, nil
+}
+
 func (s *Service) Update(ctx context.Context, userID uint, req UpdateProfileRequest) (*CleanerProfile, error) {
 	req.Bio = strings.TrimSpace(req.Bio)
-	 req.Bio = strings.TrimSpace(req.Bio)
-	 req.Location = strings.TrimSpace(req.Location)
-	 req.Country = strings.TrimSpace(req.Country)
-	 req.City = strings.TrimSpace(req.City)
-	 req.Region = strings.TrimSpace(req.Region)
-	 req.PostcodeArea = strings.TrimSpace(req.PostcodeArea)
-	 req.AvailabilityStatus = strings.TrimSpace(req.AvailabilityStatus)
-	 req.ServicesOffered = strings.TrimSpace(req.ServicesOffered)
+	req.Location = strings.TrimSpace(req.Location)
+	req.Country = strings.TrimSpace(req.Country)
+	req.City = strings.TrimSpace(req.City)
+	req.Region = strings.TrimSpace(req.Region)
+	req.PostcodeArea = strings.TrimSpace(req.PostcodeArea)
+	req.AvailabilityStatus = strings.TrimSpace(req.AvailabilityStatus)
+	req.ServicesOffered = strings.TrimSpace(req.ServicesOffered)
 
-	 if req.Country == "" {
+	if req.Country == "" {
 		req.Country = "UK"
-	 }
+	}
 
-	 if req.City == "" {
+	if req.City == "" {
 		req.City = "London"
-	 }
+	}
 
-	 if req.Region == "" {
-		req.Region = "unknown" 
-	 }
+	if req.Region == "" {
+		req.Region = "unknown"
+	}
 
-	 if req.PostcodeArea == "" {
+	if req.PostcodeArea == "" {
 		req.PostcodeArea = "unknown"
-	 }
+	}
 
-	 if req.AvailabilityStatus == "" {
-		req.AvailabilityStatus = "available_immediately" 
-	 }
+	if req.AvailabilityStatus == "" {
+		req.AvailabilityStatus = "available_immediately"
+	}
 
-	 if req.TravelRadiusMiles <= 0 {
+	if req.TravelRadiusMiles <= 0 {
 		req.TravelRadiusMiles = 10
-	 }
-	 
+	}
 
-	 if !isAllowedAvailabilityStatus(req.AvailabilityStatus) {
-		return nil, ErrInvalidAvailabilityStatus 
-	 }
+	if !isAllowedAvailabilityStatus(req.AvailabilityStatus) {
+		return nil, ErrInvalidAvailabilityStatus
+	}
 
-	 foundProfile, err := s.repo.GetByUserID(ctx, userID)
-	 if err != nil {
+	foundProfile, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
 		return nil, err
-	 }
+	}
 
-	 foundProfile.Bio = req.Bio
-	 foundProfile.Location = req.Location
-	 foundProfile.Country = req.Country
-	 foundProfile.City = req.City
-	 foundProfile.Region = req.Region
-	 foundProfile.PostcodeArea = req.PostcodeArea
-	 foundProfile.AvailabilityStatus = req.AvailabilityStatus
-	 foundProfile.TravelRadiusMiles = req.TravelRadiusMiles
-	 foundProfile.ReliabilityScore = calculateReliabilityScore(foundProfile)
-	 foundProfile.Badge = calculateCleanerBadge(foundProfile)
-	 foundProfile.YearsExperience = req.YearsExperience
-	 foundProfile.HourlyRate = req.HourlyRate
-	 foundProfile.ServicesOffered = req.ServicesOffered
+	foundProfile.Bio = req.Bio
+	foundProfile.Location = req.Location
+	foundProfile.Country = req.Country
+	foundProfile.City = req.City
+	foundProfile.Region = req.Region
+	foundProfile.PostcodeArea = req.PostcodeArea
+	foundProfile.AvailabilityStatus = req.AvailabilityStatus
+	foundProfile.TravelRadiusMiles = req.TravelRadiusMiles
+	foundProfile.ReliabilityScore = calculateReliabilityScore(foundProfile)
+	foundProfile.Badge = calculateCleanerBadge(foundProfile)
+	foundProfile.YearsExperience = req.YearsExperience
+	foundProfile.HourlyRate = req.HourlyRate
+	foundProfile.ServicesOffered = req.ServicesOffered
 
-	 if err := s.repo.Update(ctx, foundProfile); err != nil {
+	if err := s.repo.Update(ctx, foundProfile); err != nil {
 		return nil, err
-	 }
+	}
 
-	 return s.repo.GetByUserID(ctx, userID) 
+	return s.repo.GetByUserID(ctx, userID)
 }
 
 func isAllowedAvailabilityStatus(status string) bool {
@@ -196,7 +258,7 @@ func isAllowedVerificationStatus(status string) bool {
 }
 
 func (s *Service) Search(ctx context.Context, req SearchProfilesRequest) ([]SearchProfilesResult, error) {
-	req.Country =  strings.TrimSpace(req.Country)
+	req.Country = strings.TrimSpace(req.Country)
 	req.City = strings.TrimSpace(req.City)
 	req.Region = strings.TrimSpace(req.Region)
 	req.PostcodeArea = strings.TrimSpace(req.PostcodeArea)
@@ -215,7 +277,7 @@ func (s *Service) Search(ctx context.Context, req SearchProfilesRequest) ([]Sear
 
 		results = append(results, SearchProfilesResult{
 			CleanerProfile: profile,
-			MatchScore: score,
+			MatchScore:     score,
 		})
 	}
 
@@ -227,7 +289,7 @@ func (s *Service) Search(ctx context.Context, req SearchProfilesRequest) ([]Sear
 }
 
 func calculateMatchScore(profile CleanerProfile, req SearchProfilesRequest) int {
-	score := 0 
+	score := 0
 
 	if req.PostcodeArea != "" && strings.EqualFold(profile.PostcodeArea, req.PostcodeArea) {
 		score += 30
@@ -249,11 +311,11 @@ func calculateMatchScore(profile CleanerProfile, req SearchProfilesRequest) int 
 		strings.ToLower(profile.ServicesOffered),
 		strings.ToLower(req.ServicesOffered),
 	) {
-		score += 15 
+		score += 15
 	}
 
 	if profile.IsVerified {
-		score += 15 
+		score += 15
 	}
 
 	if profile.YearsExperience >= 3 {
@@ -268,18 +330,18 @@ func calculateMatchScore(profile CleanerProfile, req SearchProfilesRequest) int 
 }
 
 func calculateReliabilityScore(profile *CleanerProfile) int {
-	score := 0 
+	score := 0
 
 	if profile.IsVerified {
 		score += 25
 	}
 
 	if profile.JobsCompleted >= 1 {
-		score += 20 
+		score += 20
 	}
 
 	if profile.JobsCompleted >= 10 {
-		score += 20 
+		score += 20
 	}
 
 	if profile.JobsCancelled == 0 {
@@ -287,7 +349,7 @@ func calculateReliabilityScore(profile *CleanerProfile) int {
 	}
 
 	if profile.ResponseRate >= 80 {
-		score += 20 
+		score += 20
 	}
 
 	if score > 100 {
@@ -321,7 +383,7 @@ func calculateCleanerBadge(profile *CleanerProfile) string {
 	return "New Cleaner"
 }
 
-func  (s *Service) IncrementJobsCompleted(ctx context.Context, userID uint) error {
+func (s *Service) IncrementJobsCompleted(ctx context.Context, userID uint) error {
 	if userID == 0 {
 		return ErrInvalidInput
 	}
@@ -361,10 +423,162 @@ func (s *Service) GetCancelledJobs(ctx context.Context, userID uint) ([]JobHisto
 	return s.repo.GetCancelledJobs(ctx, userID)
 }
 
+func calculateNewOnJobiraStatus(
+	profile *CleanerProfile,
+	now time.Time,
+) NewOnJobiraStatus {
+	if profile == nil || profile.CreatedAt.IsZero() {
+		return NewOnJobiraStatus{}
+	}
+
+	daysOnJobira := int(
+		now.Sub(profile.CreatedAt).Hours() / 24,
+	)
+
+	if daysOnJobira < 0 {
+		daysOnJobira = 0
+	}
+
+	isNew := daysOnJobira < 30 &&
+		profile.JobsCompleted < 3
+
+	label := ""
+	if isNew {
+		label = "New on Jobira"
+	}
+
+	return NewOnJobiraStatus{
+		IsNew:         isNew,
+		Label:         label,
+		JoinedAt:      profile.CreatedAt,
+		DaysOnJobira:  daysOnJobira,
+		JobsCompleted: profile.JobsCompleted,
+	}
+}
+
 func (s *Service) GetFullHistory(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
 	if userID == 0 {
 		return nil, ErrInvalidInput
 	}
 
 	return s.repo.GetFullHistory(ctx, userID)
+}
+
+func (s *Service) GetNewOnJobiraStatus(ctx context.Context, userID uint) (*NewOnJobiraStatus, error) {
+	if userID == 0 {
+		return nil, ErrInvalidInput
+	}
+
+	profile, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	status := calculateNewOnJobiraStatus(
+		profile,
+		time.Now(),
+	)
+
+	return &status, nil
+}
+
+func calculateProfilesStrength(profile *CleanerProfile, portfolioPhotoCount int) ProfileStrength {
+	if profile == nil {
+		return ProfileStrength{
+			Items: []ProfileStrengthItem{},
+		}
+	}
+	items := []ProfileStrengthItem{
+		{
+			Code:      "bio",
+			Label:     "Add your bio",
+			Completed: strings.TrimSpace(profile.Bio) != "",
+			Points:    10,
+		},
+		{
+			Code:      "location",
+			Label:     "Add your location",
+			Completed: strings.TrimSpace(profile.Location) != "",
+			Points:    15,
+		},
+		{
+			Code:      "services",
+			Label:     "Add your cleaning services",
+			Completed: strings.TrimSpace(profile.ServicesOffered) != "",
+			Points:    15,
+		},
+		{
+			Code:  "availability",
+			Label: "Set your availability",
+			Completed: strings.TrimSpace(profile.AvailabilityStatus) != "" &&
+				profile.AvailabilityStatus != "not_available",
+			Points: 10,
+		},
+		{
+			Code:      "hourly_rate",
+			Label:     "Add your hourly rate",
+			Completed: profile.HourlyRate > 0,
+			Points:    10,
+		},
+		{
+			Code:      "experience",
+			Label:     "Add your experience",
+			Completed: profile.YearsExperience > 0,
+			Points:    10,
+		},
+		{
+			Code:      "travel_radius",
+			Label:     "Set your travel radius",
+			Completed: profile.TravelRadiusMiles > 0,
+			Points:    10,
+		},
+		{
+			Code:  "verification",
+			Label: "Complete your verification",
+			Completed: profile.IsVerified &&
+				profile.VerificationStatus == "verified",
+			Points: 10,
+		},
+		{
+			Code:      "portfolio",
+			Label:     "Show your work",
+			Completed: portfolioPhotoCount >= 3,
+			Points:    10,
+		},
+	}
+
+	percentage := 0
+	completedItems := 0
+	nextAction := ""
+
+	for _, item := range items {
+		if item.Completed {
+			percentage += item.Points
+			completedItems++
+			continue
+		}
+
+		if nextAction == "" {
+			nextAction = item.Label
+		}
+	}
+
+	isComplete := percentage == 100
+
+	if isComplete {
+		nextAction = "Your profile is complete"
+	}
+
+	return ProfileStrength{
+		Percentage: percentage,
+
+		CompletedItems: completedItems,
+		TotalItems:     len(items),
+
+		Items: items,
+
+		NextAction: nextAction,
+
+		IsComplete: isComplete,
+	}
 }

@@ -3,27 +3,49 @@ package favorites
 import (
 	"context"
 
-	blockedcleanersdomain "github.com/rodrigueghenda/jobira/internal/domain/blockedcleaners"
 	notificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/notifications"
 )
 
-type Service struct {
-	repo Repository
-	notificationsService *notificationsdomain.Service
-	blockChecker 		 *blockedcleanersdomain.Checker
+type BlockChecker interface {
+	IsBlocked(ctx context.Context, clientID uint, cleanerID uint) (bool, error)
 }
 
-func NewService(repo Repository, notificationsService *notificationsdomain.Service, blockChecker *blockedcleanersdomain.Checker) *Service {
+type NotificationsService interface {
+	Create(
+		ctx context.Context,
+		req notificationsdomain.CreateNotificationsRequest,
+	) (*notificationsdomain.Notification, error)
+}
+
+type Service struct {
+	repo                 Repository
+	notificationsService NotificationsService
+	blockChecker         BlockChecker
+}
+
+func NewService(repo Repository, notificationsService NotificationsService, blockChecker BlockChecker) *Service {
 	return &Service{
-		repo: repo,
+		repo:                 repo,
 		notificationsService: notificationsService,
-		blockChecker: blockChecker,
+		blockChecker:         blockChecker,
 	}
 }
 
 func (s *Service) Save(ctx context.Context, clientID uint, req CreateFavoriteRequest) (*FavoriteCleaner, error) {
+	if clientID == 0 || req.CleanerID == 0 {
+		return nil, ErrInvalidInput
+	}
+
+	if clientID == req.CleanerID {
+		return nil, ErrInvalidInput
+	}
+
 	if s.blockChecker != nil {
-		blocked, err := s.blockChecker.IsBlocked(ctx, clientID, req.CleanerID)
+		blocked, err := s.blockChecker.IsBlocked(
+			ctx,
+			clientID,
+			req.CleanerID,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -33,15 +55,11 @@ func (s *Service) Save(ctx context.Context, clientID uint, req CreateFavoriteReq
 		}
 	}
 
-	if clientID == 0 || req.CleanerID == 0 {
-		return nil, ErrInvalidInput
-	}
-
-	if clientID == req.CleanerID {
-		return nil, ErrInvalidInput
-	}
-
-	exists, err := s.repo.Exists(ctx, clientID, req.CleanerID)
+	exists, err := s.repo.Exists(
+		ctx,
+		clientID,
+		req.CleanerID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +69,7 @@ func (s *Service) Save(ctx context.Context, clientID uint, req CreateFavoriteReq
 	}
 
 	favorite := &FavoriteCleaner{
-		ClientID: clientID,
+		ClientID:  clientID,
 		CleanerID: req.CleanerID,
 	}
 
@@ -60,12 +78,15 @@ func (s *Service) Save(ctx context.Context, clientID uint, req CreateFavoriteReq
 	}
 
 	if s.notificationsService != nil {
-		_, _ = s.notificationsService.Create(ctx, notificationsdomain.CreateNotificationsRequest{
-			UserID: req.CleanerID,
-			Title: "New Favourite",
-			Message: "A Client added you to their favourite cleaners list",
-			Type: "favourite",
-		})
+		_, _ = s.notificationsService.Create(
+			ctx,
+			notificationsdomain.CreateNotificationsRequest{
+				UserID:  req.CleanerID,
+				Title:   "New Favourite",
+				Message: "A Client added you to their favourite cleaners list",
+				Type:    "favourite",
+			},
+		)
 	}
 
 	return favorite, nil
@@ -84,5 +105,9 @@ func (s *Service) Remove(ctx context.Context, clientID uint, cleanerID uint) err
 		return ErrInvalidInput
 	}
 
-	return s.repo.Delete(ctx, clientID, cleanerID)
+	return s.repo.Delete(
+		ctx,
+		clientID,
+		cleanerID,
+	)
 }

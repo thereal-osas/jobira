@@ -12,7 +12,7 @@ const UserKey contextKey = "authenticated_user"
 type UserIdentity struct {
 	UserID uint
 	Email  string
-	Role   string	
+	Role   string
 }
 
 func WithUser(ctx context.Context, user UserIdentity) context.Context {
@@ -27,4 +27,3 @@ func FromContext(ctx context.Context) (UserIdentity, error) {
 
 	return user, nil
 }
-

@@ -27,7 +27,7 @@ func (h *Handler) GetByCleanerID(w http.ResponseWriter, r *http.Request) {
 	reputation, err := h.service.GetByCleanerID(r.Context(), cleanerID)
 
 	if errors.Is(err, ErrInvalidInput) {
-		response.Error(w, http.StatusNotFound, err.Error())
+		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -48,8 +48,8 @@ func parseCleanerID(r *http.Request) (uint, error) {
 	rawID := chi.URLParam(r, "cleanerID")
 
 	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil {
-		return 0, err
+	if err != nil || parsedID == 0 {
+		return 0, ErrInvalidInput
 	}
 
 	return uint(parsedID), nil

@@ -24,7 +24,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
-		response.Error(w, http.StatusUnauthorized, "invalid job id")
+		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -47,12 +47,22 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrInvalidInput) {
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	if errors.Is(err, ErrInvitationExists) {
 		response.Error(w, http.StatusConflict, err.Error())
 		return
 	}
 
 	if errors.Is(err, ErrForbidden) {
+		response.Error(w, http.StatusForbidden, err.Error())
+		return
+	}
+
+	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -91,6 +101,11 @@ func (h *Handler) ListReceived(w http.ResponseWriter, r *http.Request) {
 	invitations, err := h.service.ListReceived(r.Context(), currentUser.UserID)
 	if errors.Is(err, ErrInvalidInput) {
 		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

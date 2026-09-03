@@ -12,5 +12,5 @@ func Hash(raw string) (string, error) {
 }
 
 func Compare(hashedPassword, plainPassword string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainPassword ))
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainPassword))
 }

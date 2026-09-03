@@ -157,6 +157,10 @@ func (r *SQLRepository) SetMonetisationEnabled(ctx context.Context, userID uint,
 }
 
 func (r *SQLRepository) GetUserSubscriptionAccess(ctx context.Context, userID uint) (*SubscriptionAccess, error) {
+
+	if userID == 0 {
+		return nil, ErrInvalidInput
+	}
 	query := `
 		SELECT
 			us.status,

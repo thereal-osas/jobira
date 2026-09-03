@@ -13,6 +13,20 @@ import (
 	reviewsdomain "github.com/rodrigueghenda/jobira/internal/domain/reviews"
 )
 
+type AvailabilityChecker interface {
+	ValidateBookingSlot(
+		ctx context.Context,
+		cleanerID uint,
+		startAt time.Time,
+		endAt time.Time,
+	) error
+
+	BookingBufferMinutes(
+		ctx context.Context,
+		cleanerID uint,
+	) (int, error)
+}
+
 type Service struct {
 	repo                     Repository
 	emailService             *emaildomain.Service
@@ -21,6 +35,7 @@ type Service struct {
 	preferredCleanersService *preferredcleanersdomain.Service
 	bookingTimeLineService   *bookingtimelinedomain.Service
 	notificationsService     *notificationsdomain.Service
+	availabilityChecker      AvailabilityChecker
 }
 
 func NewService(repo Repository, emailService *emaildomain.Service, reviewsService *reviewsdomain.Service, favoritesService *favoritesdomain.Service, preferredCleanersService *preferredcleanersdomain.Service, bookingTimeLineService *bookingtimelinedomain.Service, notificationsService *notificationsdomain.Service) *Service {
@@ -35,29 +50,143 @@ func NewService(repo Repository, emailService *emaildomain.Service, reviewsServi
 	}
 }
 
+func (s *Service) SetAvailabilityChecker(
+	checker AvailabilityChecker,
+) {
+	s.availabilityChecker = checker
+}
+
 func (s *Service) Create(ctx context.Context, clientID uint, req CreateBookingRequest) (*Booking, error) {
-	if clientID == 0 || req.JobID == 0 || req.CleanerID == 0 {
+	if clientID == 0 ||
+		req.JobID == 0 ||
+		req.CleanerID == 0 {
 		return nil, ErrInvalidInput
 	}
 
-	var scheduledAt *time.Time
+	rawStart := strings.TrimSpace(
+		req.ScheduledAt,
+	)
 
-	if strings.TrimSpace(req.ScheduledAt) != "" {
-		parsedTime, err := time.Parse(time.RFC3339, strings.TrimSpace(req.ScheduledAt))
+	rawEnd := strings.TrimSpace(
+		req.ScheduledEndAt,
+	)
+
+	var scheduledAt *time.Time
+	var scheduledEndAt *time.Time
+
+	if (rawStart == "") != (rawEnd == "") {
+		return nil, ErrInvalidInput
+	}
+
+	if rawStart != "" {
+		parsedStart, err := time.Parse(
+			time.RFC3339,
+			rawStart,
+		)
 		if err != nil {
 			return nil, ErrInvalidInput
 		}
 
-		scheduledAt = &parsedTime
+		parsedEnd, err := time.Parse(
+			time.RFC3339,
+			rawEnd,
+		)
+		if err != nil {
+			return nil, ErrInvalidInput
+		}
+
+		if !parsedEnd.After(parsedStart) {
+			return nil, ErrInvalidInput
+		}
+
+		if parsedStart.Before(time.Now()) {
+			return nil, ErrInvalidInput
+		}
+
+		conflictStart := parsedStart
+		conflictEnd := parsedEnd
+
+		if s.availabilityChecker != nil {
+			bufferMinutes, err := s.availabilityChecker.BookingBufferMinutes(
+				ctx,
+				req.CleanerID,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			if bufferMinutes > 0 {
+				bufferDuration := time.Duration(
+					bufferMinutes,
+				) * time.Minute
+
+				conflictStart = conflictStart.Add(
+					-bufferDuration,
+				)
+
+				conflictEnd = conflictEnd.Add(
+					bufferDuration,
+				)
+			}
+		}
+
+		conflict, err := s.repo.HasScheduleConflict(
+			ctx,
+			req.CleanerID,
+			conflictStart,
+			conflictEnd,
+			0,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if conflict {
+			return nil, ErrBookingConflict
+		}
+
+		if s.availabilityChecker != nil {
+			if err := s.availabilityChecker.ValidateBookingSlot(
+				ctx,
+				req.CleanerID,
+				parsedStart,
+				parsedEnd,
+			); err != nil {
+				return nil, err
+			}
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if conflict {
+			return nil, ErrBookingConflict
+		}
+
+		if s.availabilityChecker != nil {
+			if err := s.availabilityChecker.ValidateBookingSlot(
+				ctx,
+				req.CleanerID,
+				parsedStart,
+				parsedEnd,
+			); err != nil {
+				return nil, err
+			}
+		}
+
+		scheduledAt = &parsedStart
+		scheduledEndAt = &parsedEnd
 	}
 
 	booking := &Booking{
-		JobID:         req.JobID,
-		ApplicationID: req.ApplicationID,
-		ClientID:      clientID,
-		CleanerID:     req.CleanerID,
-		Status:        "pending",
-		ScheduledAt:   scheduledAt,
+		JobID:          req.JobID,
+		ApplicationID:  req.ApplicationID,
+		ClientID:       clientID,
+		CleanerID:      req.CleanerID,
+		Status:         "pending",
+		ScheduledAt:    scheduledAt,
+		ScheduledEndAt: scheduledEndAt,
 	}
 
 	if err := s.repo.Create(ctx, booking); err != nil {
@@ -294,7 +423,7 @@ func (s *Service) Cancel(ctx context.Context, bookingID uint, userID uint, role 
 		return nil, ErrForbidden
 	}
 
-	if err := s.repo.Cancel(ctx, bookingID, req.Reason); err != nil {
+	if err := s.repo.Cancel(ctx, bookingID, userID, req.Reason); err != nil {
 		return nil, err
 	}
 

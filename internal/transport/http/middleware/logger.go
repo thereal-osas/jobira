@@ -22,13 +22,13 @@ func Logger(next http.Handler) http.Handler {
 
 		recorder := &statusRecorder{
 			ResponseWriter: w,
-			statusCode: 	http.StatusOK,	
+			statusCode:     http.StatusOK,
 		}
 
 		next.ServeHTTP(recorder, r)
 
 		log.Printf(
-			"%s %s %d %s", 
+			"%s %s %d %s",
 			r.Method,
 			r.URL.Path,
 			recorder.statusCode,

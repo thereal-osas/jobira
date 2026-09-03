@@ -7,4 +7,14 @@ type CreateCompanyRequest struct {
 
 type AddMemberRequest struct {
 	UserID uint `json:"user_id"`
+
+	Role string `json:"role"`
+}
+
+type UpdateMemberStatusRequest struct {
+	Status string `json:"status"`
+}
+
+type UpdateMemberRolesRequest struct {
+	Role string `json:"role"`
 }

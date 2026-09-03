@@ -37,7 +37,7 @@ func (s *Service) CreateOrUpdate(ctx context.Context, userID uint, req CreateSub
 	return s.repo.CreateOrUpdateUserSubscription(ctx, userID, req.PlanID, "trial")
 }
 
-func (s *Service) UpdateStatus(ctx context.Context, userID uint, req UpdateSubcriptionStatusRequest) error {
+func (s *Service) UpdateStatus(ctx context.Context, userID uint, req UpdateSubscriptionStatusRequest) error {
 	req.Status = strings.TrimSpace(req.Status)
 
 	if userID == 0 || req.Status == "" {
@@ -53,10 +53,9 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uint, req UpdateSubcr
 
 func isAllowedStatus(status string) bool {
 	switch status {
-	case "trial", "active", "past_due", "cancelled", "expired": 
+	case "trial", "active", "past_due", "cancelled", "expired":
 		return true
 	default:
-		return true	
+		return false
 	}
 }
-

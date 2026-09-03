@@ -40,6 +40,7 @@ func (h *Handler) CreatePlan(w http.ResponseWriter, r *http.Request) {
 	plan, err := h.service.CreatePlan(r.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
 		response.Error(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if err != nil {
@@ -79,7 +80,7 @@ func (h *Handler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, map[string]string{
-		"message": "subscription plan updated", 
+		"message": "subscription plan updated",
 	})
 }
 
@@ -109,7 +110,7 @@ func (h *Handler) DisablePlan(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]string{
 		"message": "subscription plan disabled",
 	})
-} 
+}
 
 func (h *Handler) ListUserSubscriptions(w http.ResponseWriter, r *http.Request) {
 	subscriptions, err := h.service.ListUserSubscriptions(r.Context())
@@ -166,7 +167,7 @@ func (h *Handler) UpdateUserSubscription(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if errors.Is(err, ErrInvalidInput) {
+	if errors.Is(err, ErrInvalidStatus) {
 		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

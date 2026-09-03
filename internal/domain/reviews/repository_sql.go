@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -47,7 +48,7 @@ func (r *SQLRepository) Create(ctx context.Context, review *Review) error {
 
 	now := time.Now()
 
-	return r.db.QueryRowContext(
+	err := r.db.QueryRowContext(
 		ctx,
 		query,
 		review.BookingID,
@@ -62,12 +63,26 @@ func (r *SQLRepository) Create(ctx context.Context, review *Review) error {
 		&review.CreatedAt,
 		&review.UpdatedAt,
 	)
+
+	if err != nil {
+		if strings.Contains(
+			strings.ToLower(err.Error()),
+			"duplicate key",
+		) {
+			return ErrReviewAlreadyExist
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func (r *SQLRepository) ListByCleanerID(ctx context.Context, cleanerID uint) ([]Review, error) {
 	query := `
 		SELECT
 			id,
+			booking_id,
 			cleaner_id,
 			client_id,
 			job_id,
@@ -94,6 +109,7 @@ func (r *SQLRepository) ListByCleanerID(ctx context.Context, cleanerID uint) ([]
 
 		err := rows.Scan(
 			&review.ID,
+			&review.BookingID,
 			&review.CleanerID,
 			&review.ClientID,
 			&review.JobID,
@@ -121,8 +137,9 @@ func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]Re
 	query := `
 		SELECT
 			id,
+			booking_id,
 			cleaner_id,
-			client_id, 
+			client_id,
 			job_id,
 			rating, 
 			comment,
@@ -147,6 +164,7 @@ func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]Re
 
 		err := rows.Scan(
 			&review.ID,
+			&review.BookingID,
 			&review.CleanerID,
 			&review.ClientID,
 			&review.JobID,

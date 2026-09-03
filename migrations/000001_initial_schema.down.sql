@@ -1,0 +1,47 @@
+-- Jobira baseline rollback
+-- WARNING: destructive. This removes all tables created by 000001_initial_schema.up.sql.
+
+DROP TABLE IF EXISTS public.work_proofs CASCADE;
+DROP TABLE IF EXISTS public.verification_requests CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+DROP TABLE IF EXISTS public.user_usage CASCADE;
+DROP TABLE IF EXISTS public.user_subscriptions CASCADE;
+DROP TABLE IF EXISTS public.user_daily_access CASCADE;
+DROP TABLE IF EXISTS public.subscription_plans CASCADE;
+DROP TABLE IF EXISTS public.saved_jobs CASCADE;
+DROP TABLE IF EXISTS public.reviews CASCADE;
+DROP TABLE IF EXISTS public.reports CASCADE;
+DROP TABLE IF EXISTS public.repeat_bookings CASCADE;
+DROP TABLE IF EXISTS public.repeat_booking_requests CASCADE;
+DROP TABLE IF EXISTS public.referral_redemptions CASCADE;
+DROP TABLE IF EXISTS public.referral_codes CASCADE;
+DROP TABLE IF EXISTS public.recurring_availability CASCADE;
+DROP TABLE IF EXISTS public.recently_viewed_cleaners CASCADE;
+DROP TABLE IF EXISTS public.promo_codes CASCADE;
+DROP TABLE IF EXISTS public.profile_media CASCADE;
+DROP TABLE IF EXISTS public.preferred_cleaners CASCADE;
+DROP TABLE IF EXISTS public.platform_access_settings CASCADE;
+DROP TABLE IF EXISTS public.notifications CASCADE;
+DROP TABLE IF EXISTS public.messages CASCADE;
+DROP TABLE IF EXISTS public.jobs CASCADE;
+DROP TABLE IF EXISTS public.job_invitations CASCADE;
+DROP TABLE IF EXISTS public.job_alerts CASCADE;
+DROP TABLE IF EXISTS public.favorite_cleaners CASCADE;
+DROP TABLE IF EXISTS public.conversations CASCADE;
+DROP TABLE IF EXISTS public.company_members CASCADE;
+DROP TABLE IF EXISTS public.companies CASCADE;
+DROP TABLE IF EXISTS public.client_cleaner_notes CASCADE;
+DROP TABLE IF EXISTS public.cleaner_reputation CASCADE;
+DROP TABLE IF EXISTS public.cleaner_reports CASCADE;
+DROP TABLE IF EXISTS public.cleaner_profiles CASCADE;
+DROP TABLE IF EXISTS public.cleaner_available_now CASCADE;
+DROP TABLE IF EXISTS public.cleaner_availability CASCADE;
+DROP TABLE IF EXISTS public.bookings CASCADE;
+DROP TABLE IF EXISTS public.booking_status_history CASCADE;
+DROP TABLE IF EXISTS public.blocked_cleaners CASCADE;
+DROP TABLE IF EXISTS public.billing_customers CASCADE;
+DROP TABLE IF EXISTS public.billing_checkout_sessions CASCADE;
+DROP TABLE IF EXISTS public.availability_settings CASCADE;
+DROP TABLE IF EXISTS public.availability_overrides CASCADE;
+DROP TABLE IF EXISTS public.applications CASCADE;
+DROP TABLE IF EXISTS public.application_timeline CASCADE;

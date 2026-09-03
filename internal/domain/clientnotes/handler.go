@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	currentUser, err  := identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -33,7 +33,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req CreateNoteRequest
-	if err  := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -53,7 +53,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetByCleaner(w http.ResponseWriter, r *http.Request) {
-		currentUser, err  := identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -80,7 +80,7 @@ func (h *Handler) GetByCleaner(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-		currentUser, err  := identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -104,6 +104,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrNoteNotFound) {
+		response.Error(w, http.StatusNotFound, err.Error())
+		return
+	}
+
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
@@ -115,7 +120,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-		currentUser, err  := identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -133,13 +138,18 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrNoteNotFound) {
+		response.Error(w, http.StatusNotFound, err.Error())
+		return
+	}
+
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response.JSON(w, http.StatusOK, map[string]string{
-		"message": "note deleted", 
+		"message": "note deleted",
 	})
 }
 
@@ -152,4 +162,4 @@ func parseIDParam(r *http.Request, name string) (uint, error) {
 	}
 
 	return uint(parsedID), nil
-} 
+}

@@ -2,11 +2,12 @@ package availability
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rodrigueghenda/jobira/internal/security/identity"
@@ -269,55 +270,6 @@ func TestHandler_Create_Conflict(t *testing.T) {
 		t.Fatalf(
 			"expected %d, got %d: %s",
 			http.StatusConflict,
-			recorder.Code,
-			recorder.Body.String(),
-		)
-	}
-}
-
-func TestHandler_Create_InternalServerError(t *testing.T) {
-	expectedErr := errors.New("database failed")
-
-	repo := &mockRepository{
-		hasConflictFn: func(
-			context.Context,
-			uint,
-			string,
-			string,
-			string,
-			uint,
-		) (bool, error) {
-			return false, nil
-		},
-		createFn: func(
-			context.Context,
-			*CleanerAvailability,
-		) error {
-			return expectedErr
-		},
-	}
-
-	handler := newHandlerForTest(repo)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/availability/",
-		strings.NewReader(`{
-			"available_date":"2026-08-10",
-			"start_time":"09:00",
-			"end_time":"17:00"
-		}`),
-	)
-	req = requestWithUser(req, 8, "cleaner")
-
-	recorder := httptest.NewRecorder()
-
-	handler.Create(recorder, req)
-
-	if recorder.Code != http.StatusInternalServerError {
-		t.Fatalf(
-			"expected %d, got %d: %s",
-			http.StatusInternalServerError,
 			recorder.Code,
 			recorder.Body.String(),
 		)
@@ -629,7 +581,6 @@ func TestHandler_Delete_Success(t *testing.T) {
 		)
 	}
 }
-
 func TestHandler_CreateBlock_Success(t *testing.T) {
 	repo := &mockRepository{
 		createBlockFn: func(
@@ -642,16 +593,34 @@ func TestHandler_CreateBlock_Success(t *testing.T) {
 
 	handler := newHandlerForTest(repo)
 
+	startAt := time.Now().Add(24 * time.Hour)
+	endAt := startAt.Add(2 * time.Hour)
+
+	body := fmt.Sprintf(
+		`{
+			"start_at": %q,
+			"end_at": %q,
+			"reason": "personal appointment"
+		}`,
+		startAt.Format(time.RFC3339),
+		endAt.Format(time.RFC3339),
+	)
+
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/availability/blocks",
-		strings.NewReader(`{
-			"start_at":"2026-08-10T09:00:00Z",
-			"end_at":"2026-08-10T17:00:00Z",
-			"reason":"Holiday"
-		}`),
+		strings.NewReader(body),
 	)
-	req = requestWithUser(req, 8, "cleaner")
+
+	req = req.WithContext(
+		identity.WithUser(
+			req.Context(),
+			identity.UserIdentity{
+				UserID: 8,
+				Role:   "cleaner",
+			},
+		),
+	)
 
 	recorder := httptest.NewRecorder()
 

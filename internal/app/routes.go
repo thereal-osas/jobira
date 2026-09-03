@@ -2,23 +2,25 @@ package app
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/rodrigueghenda/jobira/internal/domain/admin"
-	applicationsdomain "github.com/rodrigueghenda/jobira/internal/domain/applications"
-	"github.com/rodrigueghenda/jobira/internal/domain/auth"
-
 	adminmoderationdomain "github.com/rodrigueghenda/jobira/internal/domain/adminmoderation"
 	adminsubscriptionsdomain "github.com/rodrigueghenda/jobira/internal/domain/adminsubscriptions"
 	analyticsdomain "github.com/rodrigueghenda/jobira/internal/domain/analytics"
+	applicationsdomain "github.com/rodrigueghenda/jobira/internal/domain/applications"
+	applicationtimelinedomain "github.com/rodrigueghenda/jobira/internal/domain/applicationtimeline"
+	"github.com/rodrigueghenda/jobira/internal/domain/auth"
 	availabilitydomain "github.com/rodrigueghenda/jobira/internal/domain/availability"
+	availablenowdomain "github.com/rodrigueghenda/jobira/internal/domain/availablenow"
 	billingdomain "github.com/rodrigueghenda/jobira/internal/domain/billing"
 	blockedcleanersdomain "github.com/rodrigueghenda/jobira/internal/domain/blockedcleaners"
 	bookingsdomain "github.com/rodrigueghenda/jobira/internal/domain/bookings"
 	bookingtimelinedomain "github.com/rodrigueghenda/jobira/internal/domain/bookingtimeline"
 	chatdomain "github.com/rodrigueghenda/jobira/internal/domain/chat"
 	cleanerdashboarddomain "github.com/rodrigueghenda/jobira/internal/domain/cleanerdashboard"
+	cleanerprogressiondomain "github.com/rodrigueghenda/jobira/internal/domain/cleanerprogression"
 	cleanerreportsdomain "github.com/rodrigueghenda/jobira/internal/domain/cleanerreports"
+	cleaningteamdomain "github.com/rodrigueghenda/jobira/internal/domain/cleaningteam"
 	clientdashboarddomain "github.com/rodrigueghenda/jobira/internal/domain/clientdashboard"
 	clientnotesdomain "github.com/rodrigueghenda/jobira/internal/domain/clientnotes"
 	companyaccountsdomain "github.com/rodrigueghenda/jobira/internal/domain/companyaccounts"
@@ -27,10 +29,14 @@ import (
 	"github.com/rodrigueghenda/jobira/internal/domain/health"
 	jobalertsdomain "github.com/rodrigueghenda/jobira/internal/domain/jobalerts"
 	jobinvitationsdomain "github.com/rodrigueghenda/jobira/internal/domain/jobinvitations"
+	jobpulsedomain "github.com/rodrigueghenda/jobira/internal/domain/jobpulse"
+
 	"github.com/rodrigueghenda/jobira/internal/domain/jobs"
+	matchscoredomain "github.com/rodrigueghenda/jobira/internal/domain/matchscore"
 	messagesdomain "github.com/rodrigueghenda/jobira/internal/domain/messages"
 	notificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/notifications"
 	preferredcleanersdomain "github.com/rodrigueghenda/jobira/internal/domain/preferredcleaners"
+	profilemediadomain "github.com/rodrigueghenda/jobira/internal/domain/profilemedia"
 	profilesdomain "github.com/rodrigueghenda/jobira/internal/domain/profiles"
 	recentviewsdomain "github.com/rodrigueghenda/jobira/internal/domain/recentviews"
 	referralsdomain "github.com/rodrigueghenda/jobira/internal/domain/referrals"
@@ -42,8 +48,10 @@ import (
 	subscriptionaccessdomain "github.com/rodrigueghenda/jobira/internal/domain/subscriptionaccess"
 	subscriptionsdomain "github.com/rodrigueghenda/jobira/internal/domain/subscriptions"
 	usagedomain "github.com/rodrigueghenda/jobira/internal/domain/subscriptions/usage"
+	topofferdomain "github.com/rodrigueghenda/jobira/internal/domain/topoffer"
 	userdomain "github.com/rodrigueghenda/jobira/internal/domain/users"
 	verificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/verifications"
+	workproofdomain "github.com/rodrigueghenda/jobira/internal/domain/workproof"
 	jwtsecurity "github.com/rodrigueghenda/jobira/internal/security/jwt"
 	"github.com/rodrigueghenda/jobira/internal/transport/http/middleware"
 )
@@ -61,7 +69,25 @@ func (a *App) registerRoutes() {
 	blockChecker := blockedcleanersdomain.NewChecker(a.DB)
 	adminOnlyMiddleware := middleware.RequireRole("admin")
 
-	emailSender := emaildomain.NewNoopSender()
+	var emailSender emaildomain.Sender
+
+	if a.Cfg.SMTPHost != "" &&
+		a.Cfg.SMTPPort != "" &&
+		a.Cfg.SMTPFrom != "" {
+
+		emailSender = emaildomain.NewSMTPSender(
+			emaildomain.SMTPConfig{
+				Host:     a.Cfg.SMTPHost,
+				Port:     a.Cfg.SMTPPort,
+				Username: a.Cfg.SMTPUsername,
+				Password: a.Cfg.SMTPPassword,
+				From:     a.Cfg.SMTPFrom,
+			},
+		)
+	} else {
+		emailSender = emaildomain.NewNoopSender()
+	}
+
 	emailService := emaildomain.NewService(emailSender)
 
 	authRepo := auth.NewSQLRepository(a.DB)
@@ -91,18 +117,75 @@ func (a *App) registerRoutes() {
 	jobHandler := jobs.NewHandler(jobService)
 	jobs.RegisterRoutes(a.R, jobHandler, authMiddleware)
 
+	jobPulseRepo := jobpulsedomain.NewSQLRepository(
+		a.DB,
+	)
+
+	jobPulseService := jobpulsedomain.NewService(
+		jobPulseRepo,
+	)
+
+	jobPulseHandler := jobpulsedomain.NewHandler(
+		jobPulseService,
+	)
+
+	jobpulsedomain.RegisterRoutes(
+		a.R,
+		jobPulseHandler,
+	)
+
 	notificationsRepo := notificationsdomain.NewSQLRepository(a.DB)
 	notificationsService := notificationsdomain.NewService(notificationsRepo)
 	notificationHandler := notificationsdomain.NewHandler(notificationsService)
 	notificationsdomain.RegisterRoutes(a.R, notificationHandler, authMiddleware)
 
-	profilesRepo := profilesdomain.NEWSQLRepository(a.DB)
+	profileMediaRepo := profilemediadomain.NewSQLRepository(a.DB)
+
+	profilesRepo := profilesdomain.NewSQLRepository(a.DB)
 	profilesService := profilesdomain.NewService(profilesRepo)
+
+	profilesService.SetPortfolioCounter(
+		profileMediaRepo,
+	)
+
 	profilesHandler := profilesdomain.NewHandler(profilesService)
-	profilesdomain.RegisterRoutes(a.R, profilesHandler, authMiddleware, adminOnlyMiddleware)
+
+	profilesdomain.RegisterRoutes(
+		a.R,
+		profilesHandler,
+		authMiddleware,
+		adminOnlyMiddleware,
+	)
+
+	profileMediaService := profilemediadomain.NewService(
+		profileMediaRepo,
+	)
+
+	profileMediaHandler := profilemediadomain.NewHandler(
+		profileMediaService,
+	)
+
+	profilemediadomain.RegisterRoutes(
+		a.R,
+		profileMediaHandler,
+		authMiddleware,
+	)
+
+	applicationTimelineRepo := applicationtimelinedomain.NewSQLRepository(a.DB)
+	applicationTimelineService := applicationtimelinedomain.NewService(applicationTimelineRepo)
+	applicationTimelineHandler := applicationtimelinedomain.NewHandler(applicationTimelineService)
+
+	applicationtimelinedomain.RegisterRoutes(
+		a.R,
+		applicationTimelineHandler,
+		authMiddleware,
+	)
 
 	applicationsRepo := applicationsdomain.NewSQLRepository(a.DB)
 	applicationsService := applicationsdomain.NewService(applicationsRepo, notificationsService, profilesService, usageService, emailService, subscriptionaccessService)
+	applicationsService.SetTimelineRecorder(
+		applicationTimelineService,
+	)
 	applicationsHandler := applicationsdomain.NewHandler(applicationsService)
 	applicationsdomain.RegisterRoutes(a.R, applicationsHandler, authMiddleware)
 
@@ -110,6 +193,22 @@ func (a *App) registerRoutes() {
 	reviewsService := reviewsdomain.NewService(reviewsRepo)
 	reviewsHandler := reviewsdomain.NewHandler(reviewsService)
 	reviewsdomain.RegisterRoutes(a.R, reviewsHandler, authMiddleware)
+
+	workProofRepo := workproofdomain.NewSQLRepository(a.DB)
+
+	workProofService := workproofdomain.NewService(
+		workProofRepo,
+	)
+
+	workProofHandler := workproofdomain.NewHandler(
+		workProofService,
+	)
+
+	workproofdomain.RegisterRoutes(
+		a.R,
+		workProofHandler,
+		authMiddleware,
+	)
 
 	messagesRepo := messagesdomain.NewSQLRepository(a.DB)
 	messagesService := messagesdomain.NewService(messagesRepo, notificationsService)
@@ -132,8 +231,29 @@ func (a *App) registerRoutes() {
 
 	jobinvitationsdomain.RegisterRoutes(a.R, jobInvitationsHandler, authMiddleware)
 
+	availabilityRepo := availabilitydomain.NewSQLRepository(a.DB)
+	availabilityService := availabilitydomain.NewService(availabilityRepo)
+	availabilityHandler := availabilitydomain.NewHandler(availabilityService)
+	availabilitydomain.RegisterRoutes(a.R, availabilityHandler, authMiddleware)
+
+	availableNowRepo := availablenowdomain.NewSQLRepository(a.DB)
+
+	availableNowService := availablenowdomain.NewService(
+		availableNowRepo,
+	)
+
+	availableNowHandler := availablenowdomain.NewHandler(
+		availableNowService,
+	)
+
+	availablenowdomain.RegisterRoutes(
+		a.R,
+		availableNowHandler,
+		authMiddleware,
+	)
+
 	repeatBookingsRepo := repeatbookingsdomain.NewSQLRepository(a.DB)
-	repeatBookingsService := repeatbookingsdomain.NewService(repeatBookingsRepo, notificationsService, blockChecker)
+	repeatBookingsService := repeatbookingsdomain.NewService(repeatBookingsRepo, notificationsService, blockChecker, availabilityService)
 	repeatBookingsHandler := repeatbookingsdomain.NewHandler(repeatBookingsService)
 
 	repeatbookingsdomain.RegisterRoutes(a.R, repeatBookingsHandler, authMiddleware)
@@ -203,6 +323,9 @@ func (a *App) registerRoutes() {
 		bookingTimelineService,
 		notificationsService,
 	)
+
+	bookingsService.SetAvailabilityChecker(availabilityService)
+
 	bookingsHandler := bookingsdomain.NewHandler(bookingsService)
 
 	bookingsdomain.RegisterRoutes(
@@ -225,11 +348,6 @@ func (a *App) registerRoutes() {
 		chatHandler,
 		authMiddleware,
 	)
-
-	availabilityRepo := availabilitydomain.NewSQLRepository(a.DB)
-	availabilityService := availabilitydomain.NewService(availabilityRepo)
-	availabilityHandler := availabilitydomain.NewHandler(availabilityService)
-	availabilitydomain.RegisterRoutes(a.R, availabilityHandler, authMiddleware)
 
 	savedJobsRepo := savedjobsdomain.NewSQLRepository(a.DB)
 	savedJobsService := savedjobsdomain.NewService(savedJobsRepo)
@@ -257,14 +375,16 @@ func (a *App) registerRoutes() {
 	analyticsHandler := analyticsdomain.NewHandler(analyticsService)
 	analyticsdomain.RegisterRoutes(a.R, analyticsHandler, authMiddleware, adminOnlyMiddleware)
 
-	billingRepo := billingdomain.NEWSQLRepository(a.DB)
+	billingRepo := billingdomain.NewSQLRepository(a.DB)
+
 	billingService := billingdomain.NewService(
-		billingRepo, billingdomain.StripeConfig{
-			SecretKey:       os.Getenv("STRIPE_SECRET_KEY"),
-			WebhookSecret:   os.Getenv("STRIPE_WEBHOOK_SECRET"),
-			SuccessURL:      os.Getenv("STRIPE_SUCCESS_URL"),
-			CancelURL:       os.Getenv("STRIPE_CANCEL_URL"),
-			PortalReturnURL: os.Getenv("STRIPE_PORTAL_RETURN_URL"),
+		billingRepo,
+		billingdomain.StripeConfig{
+			SecretKey:       a.Cfg.StripeSecretKey,
+			WebhookSecret:   a.Cfg.StripeWebhookSecret,
+			SuccessURL:      a.Cfg.StripeSuccessURL,
+			CancelURL:       a.Cfg.StripeCancelURL,
+			PortalReturnURL: a.Cfg.StripePortalReturnURL,
 		},
 	)
 	billingHandler := billingdomain.NewHandler(billingService)
@@ -275,11 +395,67 @@ func (a *App) registerRoutes() {
 	referralsHandler := referralsdomain.NewHandler(referralsService)
 	referralsdomain.RegisterRoutes(a.R, referralsHandler, authMiddleware)
 
+	matchScoreRepo := matchscoredomain.NewSQLRepository(a.DB)
+
+	matchScoreService := matchscoredomain.NewService(
+		matchScoreRepo,
+	)
+
+	matchScoreHandler := matchscoredomain.NewHandler(
+		matchScoreService,
+	)
+
+	matchscoredomain.RegisterRoutes(
+		a.R,
+		matchScoreHandler,
+		authMiddleware,
+	)
+
+	topOfferRepo := topofferdomain.NewSQLRepository(a.DB)
+
+	topOfferService := topofferdomain.NewService(
+		topOfferRepo,
+	)
+
+	topOfferHandler := topofferdomain.NewHandler(
+		topOfferService,
+	)
+
+	topofferdomain.RegisterRoutes(
+		a.R,
+		topOfferHandler,
+		authMiddleware,
+	)
+
+	cleaningTeamRepo := cleaningteamdomain.NewSQLRepository(a.DB)
+
+	cleaningTeamService := cleaningteamdomain.NewService(
+		cleaningTeamRepo,
+	)
+
+	cleaningTeamHandler := cleaningteamdomain.NewHandler(
+		cleaningTeamService,
+	)
+
+	cleaningteamdomain.RegisterRoutes(
+		a.R,
+		cleaningTeamHandler,
+		authMiddleware,
+	)
+
 	reputationRepo := reputationdomain.NewSQLRepository(a.DB)
 	reputationService := reputationdomain.NewService(reputationRepo)
 	reputationHandler := reputationdomain.NewHandler(reputationService)
 
 	reputationdomain.RegisterRoutes(a.R, reputationHandler)
+
+	cleanerProgressionRepo := cleanerprogressiondomain.NewSQLRepository(a.DB)
+
+	cleanerProgressionService := cleanerprogressiondomain.NewService(cleanerProgressionRepo)
+
+	cleanerProgressionHandler := cleanerprogressiondomain.NewHandler(cleanerProgressionService)
+
+	cleanerprogressiondomain.RegisterRoutes(a.R, cleanerProgressionHandler, authMiddleware)
 
 	cleanerDashboardRepo := cleanerdashboarddomain.NewSQLRepository(a.DB)
 

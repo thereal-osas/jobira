@@ -2,7 +2,7 @@ package timeutil
 
 import "time"
 
-func NowTC() time.Time{
+func NowTC() time.Time {
 	return time.Now().UTC()
 }
 

@@ -7,7 +7,7 @@ type CreateCheckoutSessionRequest struct {
 
 type CheckoutSessionResponse struct {
 	URL       string `json:"url"`
-	SessionID string `json:"sesion_id"`
+	SessionID string `json:"session_id"`
 }
 
 type BillingPortalResponse struct {

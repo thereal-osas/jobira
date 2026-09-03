@@ -45,6 +45,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrForbidden) {
+		response.Error(w, http.StatusForbidden, err.Error())
+		return
+	}
+
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
@@ -114,6 +119,18 @@ func (h *Handler) BookAgain(w http.ResponseWriter, r *http.Request) {
 
 	if errors.Is(err, ErrForbidden) {
 		response.Error(w, http.StatusForbidden, err.Error())
+		return
+	}
+
+	if errors.Is(
+		err,
+		ErrCleanerUnavailable,
+	) {
+		response.Error(
+			w,
+			http.StatusConflict,
+			err.Error(),
+		)
 		return
 	}
 

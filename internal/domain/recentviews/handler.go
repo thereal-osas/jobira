@@ -43,7 +43,7 @@ func (h *Handler) RecordView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusCreated, map[string]string{
-		"message": "cleaner view recorded", 
+		"message": "cleaner view recorded",
 	})
 }
 
@@ -68,12 +68,54 @@ func (h *Handler) ListMine(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, views)
 }
 
+func (h *Handler) GetMyProfileViewAnalytics(w http.ResponseWriter, r *http.Request) {
+	currentUser, err := identity.FromContext(r.Context())
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+		return
+	}
+
+	analytics, err := h.service.GetProfileViewAnalytics(
+		r.Context(),
+		currentUser.UserID,
+	)
+
+	if errors.Is(err, ErrInvalidInput) {
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			err.Error(),
+		)
+		return
+	}
+
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		analytics,
+	)
+}
+
 func parseIDParam(r *http.Request, name string) (uint, error) {
 	rawID := chi.URLParam(r, name)
 
 	parsedID, err := strconv.ParseUint(rawID, 10, 64)
 	if err != nil {
-		return 0, err 
+		return 0, err
 	}
 
 	return uint(parsedID), nil

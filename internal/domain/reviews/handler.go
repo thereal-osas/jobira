@@ -48,7 +48,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors.Is(err, ErrForbidden) {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		response.Error(w, http.StatusForbidden, err.Error())
 		return
 	}
 

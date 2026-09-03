@@ -3,10 +3,14 @@ package availability
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/rodrigueghenda/jobira/internal/security/identity"
 )
 
 func TestService_GetByID_InvalidInput_Edge(t *testing.T) {
@@ -749,10 +753,9 @@ func TestHandler_GetByID_NotFound_Edge(t *testing.T) {
 
 	handler.GetByID(recorder, req)
 
-	if recorder.Code != http.StatusForbidden {
+	if recorder.Code != http.StatusNotFound {
 		t.Fatalf(
-			"expected %d, got %d: %s",
-			http.StatusForbidden,
+			"expected 404, got %d: %s",
 			recorder.Code,
 			recorder.Body.String(),
 		)
@@ -1264,25 +1267,45 @@ func TestHandler_CreateBlock_InternalServerError_Edge(t *testing.T) {
 
 	handler := newHandlerForTest(repo)
 
+	startAt := time.Now().Add(24 * time.Hour)
+	endAt := startAt.Add(2 * time.Hour)
+
+	body := fmt.Sprintf(
+		`{
+			"start_at": %q,
+			"end_at": %q,
+			"reason": "personal appointment"
+		}`,
+		startAt.Format(time.RFC3339),
+		endAt.Format(time.RFC3339),
+	)
+
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/availability/blocks",
-		strings.NewReader(`{
-			"start_at":"2026-08-10T09:00:00Z",
-			"end_at":"2026-08-10T17:00:00Z",
-			"reason":"Holiday"
-		}`),
+		strings.NewReader(body),
 	)
-	req = requestWithUser(req, 8, "cleaner")
+
+	req = req.WithContext(
+		identity.WithUser(
+			req.Context(),
+			identity.UserIdentity{
+				UserID: 8,
+				Role:   "cleaner",
+			},
+		),
+	)
 
 	recorder := httptest.NewRecorder()
 
-	handler.CreateBlock(recorder, req)
+	handler.CreateBlock(
+		recorder,
+		req,
+	)
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf(
-			"expected %d, got %d: %s",
-			http.StatusInternalServerError,
+			"expected 500, got %d: %s",
 			recorder.Code,
 			recorder.Body.String(),
 		)

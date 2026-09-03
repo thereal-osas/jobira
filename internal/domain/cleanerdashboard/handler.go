@@ -17,13 +17,13 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	currentUserm, err := identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	dashboard, err := h.service.GetMine(r.Context(), currentUserm.UserID)
+	dashboard, err := h.service.GetMine(r.Context(), currentUser.UserID)
 
 	if errors.Is(err, ErrInvalidInput) {
 		response.Error(w, http.StatusBadRequest, err.Error())

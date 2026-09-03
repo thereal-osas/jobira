@@ -90,6 +90,318 @@ func (m *MockRepository) MarkAsRead(ctx context.Context, conversationID uint, us
 	return m.markReadErr
 }
 
+func TestCreateConversation_InvalidInput(t *testing.T) {
+	tests := []struct {
+		name      string
+		userID    uint
+		bookingID uint
+	}{
+		{
+			name:      "invalid user ID",
+			userID:    0,
+			bookingID: 1,
+		},
+		{
+			name:      "invalid booking ID",
+			userID:    10,
+			bookingID: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &MockRepository{}
+
+			bookingReader := &mockBookingReader{}
+
+			service := NewService(
+				repo,
+				bookingReader,
+			)
+
+			conversation, err := service.CreateConversation(
+				context.Background(),
+				test.userID,
+				"client",
+				CreateConversationRequest{
+					BookingID: test.bookingID,
+				},
+			)
+
+			if conversation != nil {
+				t.Fatal("expected conversation to be nil")
+			}
+
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf(
+					"expected ErrInvalidInput, got %v",
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestCreateConversation_BookingReaderError(t *testing.T) {
+	bookingErr := errors.New("booking lookup failed")
+
+	repo := &MockRepository{}
+
+	bookingReader := &mockBookingReader{
+		err: bookingErr,
+	}
+
+	service := NewService(
+		repo,
+		bookingReader,
+	)
+
+	conversation, err := service.CreateConversation(
+		context.Background(),
+		10,
+		"client",
+		CreateConversationRequest{
+			BookingID: 5,
+		},
+	)
+
+	if conversation != nil {
+		t.Fatal("expected conversation to be nil")
+	}
+
+	if !errors.Is(err, bookingErr) {
+		t.Fatalf(
+			"expected booking error, got %v",
+			err,
+		)
+	}
+}
+
+func TestCreateConversation_NonParticipantForbidden(t *testing.T) {
+	repo := &MockRepository{}
+
+	bookingReader := &mockBookingReader{
+		booking: &bookings.Booking{
+			ID:        5,
+			ClientID:  10,
+			CleanerID: 20,
+		},
+	}
+
+	service := NewService(
+		repo,
+		bookingReader,
+	)
+
+	conversation, err := service.CreateConversation(
+		context.Background(),
+		99,
+		"client",
+		CreateConversationRequest{
+			BookingID: 5,
+		},
+	)
+
+	if conversation != nil {
+		t.Fatal("expected conversation to be nil")
+	}
+
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf(
+			"expected ErrForbidden, got %v",
+			err,
+		)
+	}
+}
+
+func TestCreateConversation_ReturnsExistingConversation(t *testing.T) {
+	existingConversation := &Conversation{
+		ID:        7,
+		BookingID: 5,
+		ClientID:  10,
+		CleanerID: 20,
+		Status:    "active",
+	}
+
+	repo := &MockRepository{
+		conversation: existingConversation,
+	}
+
+	bookingReader := &mockBookingReader{
+		booking: &bookings.Booking{
+			ID:        5,
+			ClientID:  10,
+			CleanerID: 20,
+		},
+	}
+
+	service := NewService(
+		repo,
+		bookingReader,
+	)
+
+	conversation, err := service.CreateConversation(
+		context.Background(),
+		10,
+		"client",
+		CreateConversationRequest{
+			BookingID: 5,
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if conversation == nil {
+		t.Fatal("expected conversation")
+	}
+
+	if conversation.ID != 7 {
+		t.Fatalf(
+			"expected conversation ID 7, got %d",
+			conversation.ID,
+		)
+	}
+
+	if conversation != existingConversation {
+		t.Fatal("expected existing conversation to be returned")
+	}
+}
+
+func TestCreateConversation_ConversationLookupError(t *testing.T) {
+	lookupErr := errors.New("conversation lookup failed")
+
+	repo := &MockRepository{
+		getConversationErr: lookupErr,
+	}
+
+	bookingReader := &mockBookingReader{
+		booking: &bookings.Booking{
+			ID:        5,
+			ClientID:  10,
+			CleanerID: 20,
+		},
+	}
+
+	service := NewService(
+		repo,
+		bookingReader,
+	)
+
+	conversation, err := service.CreateConversation(
+		context.Background(),
+		10,
+		"client",
+		CreateConversationRequest{
+			BookingID: 5,
+		},
+	)
+
+	if conversation != nil {
+		t.Fatal("expected conversation to be nil")
+	}
+
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf(
+			"expected conversation lookup error, got %v",
+			err,
+		)
+	}
+}
+
+func TestCreateConversation_Success(t *testing.T) {
+	repo := &MockRepository{
+		getConversationErr: ErrConversationNotFound,
+	}
+
+	bookingReader := &mockBookingReader{
+		booking: &bookings.Booking{
+			ID:        5,
+			ClientID:  10,
+			CleanerID: 20,
+		},
+	}
+
+	service := NewService(
+		repo,
+		bookingReader,
+	)
+
+	conversation, err := service.CreateConversation(
+		context.Background(),
+		10,
+		"client",
+		CreateConversationRequest{
+			BookingID: 5,
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if conversation == nil {
+		t.Fatal("expected conversation")
+	}
+
+	if conversation.BookingID != 5 {
+		t.Fatalf(
+			"expected booking ID 5, got %d",
+			conversation.BookingID,
+		)
+	}
+
+	if conversation.Status != "active" {
+		t.Fatalf(
+			"expected active status, got %s",
+			conversation.Status,
+		)
+	}
+}
+
+func TestCreateConversation_CreateRepositoryError(t *testing.T) {
+	createErr := errors.New("create conversation failed")
+
+	repo := &MockRepository{
+		getConversationErr:    ErrConversationNotFound,
+		createConversationErr: createErr,
+	}
+
+	bookingReader := &mockBookingReader{
+		booking: &bookings.Booking{
+			ID:        5,
+			ClientID:  10,
+			CleanerID: 20,
+		},
+	}
+
+	service := NewService(
+		repo,
+		bookingReader,
+	)
+
+	conversation, err := service.CreateConversation(
+		context.Background(),
+		10,
+		"client",
+		CreateConversationRequest{
+			BookingID: 5,
+		},
+	)
+
+	if conversation != nil {
+		t.Fatal("expected conversation to be nil")
+	}
+
+	if !errors.Is(err, createErr) {
+		t.Fatalf(
+			"expected create error, got %v",
+			err,
+		)
+	}
+}
+
 func TestSendMessage_EmptyMessage(t *testing.T) {
 	repo := &MockRepository{
 		conversation: &Conversation{

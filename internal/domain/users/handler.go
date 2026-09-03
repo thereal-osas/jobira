@@ -2,7 +2,7 @@ package users
 
 import (
 	"errors"
-	"net/http"  
+	"net/http"
 
 	"github.com/rodrigueghenda/jobira/internal/security/identity"
 	"github.com/rodrigueghenda/jobira/internal/transport/http/response"
@@ -33,7 +33,10 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		}
 
 		response.Error(w, http.StatusInternalServerError, "failed to get user")
+		return
 	}
 
 	response.JSON(w, http.StatusOK, user)
+
+	return
 }

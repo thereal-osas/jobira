@@ -19,11 +19,14 @@ func RegisterRoutes(
 
 		r.Post("/", handler.Create)
 		r.Get("/me", handler.GetMine)
+		r.Get("/me/strength", handler.GetMyProfileStrength)
 		r.Put("/me", handler.Update)
-		
+
 		r.Get("/me/history", handler.GetFullHistory)
 		r.Get("/me/completed-jobs", handler.GetCompletedJobs)
 		r.Get("/me/cancelled-jobs", handler.GetCancelledJobs)
+
+		r.Get("/{userID}/new-on-jobira", handler.GetNewOnJobiraStatus)
 
 		r.Group(func(r chi.Router) {
 			r.Use(adminOnlyMiddleware)

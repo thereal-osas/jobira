@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rodrigueghenda/jobira/internal/security/identity"
 	"github.com/rodrigueghenda/jobira/internal/transport/http/response"
-	
 )
 
 type Handler struct {
@@ -23,7 +22,7 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) Send(w http.ResponseWriter, r *http.Request) {
-	currentUser,  err := identity.FromContext(r.Context())
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -42,15 +41,15 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.service.Send(r.Context(),jobID,currentUser.UserID, req)
+	message, err := h.service.Send(r.Context(), jobID, currentUser.UserID, req)
 
 	if errors.Is(err, ErrInvalidInput) {
 		response.Error(w, http.StatusBadRequest, err.Error())
-		return	
+		return
 	}
 
 	if errors.Is(err, ErrForbidden) {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		response.Error(w, http.StatusForbidden, err.Error())
 		return
 	}
 
@@ -62,7 +61,6 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, message)
 
 }
-
 
 func (h *Handler) ListConversation(w http.ResponseWriter, r *http.Request) {
 	currentUser, err := identity.FromContext(r.Context())
@@ -98,9 +96,9 @@ func (h *Handler) ListConversation(w http.ResponseWriter, r *http.Request) {
 func parseJobID(r *http.Request) (uint, error) {
 	rawID := chi.URLParam(r, "jobID")
 
-	parsedID, err := strconv.ParseUint(rawID,  10, 64)
-	if err != nil {
-		return 0, err
+	parsedID, err := strconv.ParseUint(rawID, 10, 64)
+	if err != nil || parsedID == 0 {
+		return 0, ErrInvalidInput
 	}
 
 	return uint(parsedID), nil

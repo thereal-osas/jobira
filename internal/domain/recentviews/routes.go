@@ -14,7 +14,19 @@ func RegisterRoutes(
 	r.Route("/recent-views", func(r chi.Router) {
 		r.Use(authMiddleware)
 
-		r.Post("/cleaners/{cleanerID}", handler.RecordView)
-		r.Get("/me", handler.ListMine)
+		r.Post(
+			"/cleaners/{cleanerID}",
+			handler.RecordView,
+		)
+
+		r.Get(
+			"/me",
+			handler.ListMine,
+		)
+
+		r.Get(
+			"/me/analytics",
+			handler.GetMyProfileViewAnalytics,
+		)
 	})
 }

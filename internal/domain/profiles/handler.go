@@ -37,7 +37,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	profiles, err := h.service.Create(r.Context(), currentUser.UserID, req)
 
-	if errors.Is(err, ErrInvalidInput) {
+	if errors.Is(err, ErrInvalidInput) ||
+		errors.Is(err, ErrInvalidAvailabilityStatus) {
 		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -77,6 +78,127 @@ func (h *Handler) GetMine(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, profiles)
 }
 
+func (h *Handler) GetMyProfileStrength(w http.ResponseWriter, r *http.Request) {
+	currentUser, err := identity.FromContext(
+		r.Context(),
+	)
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+		return
+	}
+
+	result, err :=
+		h.service.GetMyProfileStrength(
+			r.Context(),
+			currentUser.UserID,
+		)
+
+	if errors.Is(
+		err,
+		ErrInvalidInput,
+	) {
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			err.Error(),
+		)
+		return
+	}
+
+	if errors.Is(
+		err,
+		ErrProfileNotFound,
+	) {
+		response.Error(
+			w,
+			http.StatusNotFound,
+			err.Error(),
+		)
+		return
+	}
+
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		result,
+	)
+}
+func (h *Handler) GetNewOnJobiraStatus(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	_, err := identity.FromContext(r.Context())
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+		return
+	}
+
+	userID, err := parseUserIDParam(r)
+	if err != nil {
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			"invalid user id",
+		)
+		return
+	}
+
+	result, err := h.service.GetNewOnJobiraStatus(
+		r.Context(),
+		userID,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidInput):
+			response.Error(
+				w,
+				http.StatusBadRequest,
+				err.Error(),
+			)
+
+		case errors.Is(err, ErrProfileNotFound):
+			response.Error(
+				w,
+				http.StatusNotFound,
+				err.Error(),
+			)
+
+		default:
+			response.Error(
+				w,
+				http.StatusInternalServerError,
+				err.Error(),
+			)
+		}
+
+		return
+	}
+
+	response.JSON(
+		w,
+		http.StatusOK,
+		result,
+	)
+}
+
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
@@ -92,6 +214,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profiles, err := h.service.Update(r.Context(), currentUser.UserID, req)
+
+	if errors.Is(err, ErrInvalidAvailabilityStatus) {
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	if errors.Is(err, ErrProfileNotFound) {
 		response.Error(w, http.StatusNotFound, err.Error())
@@ -148,8 +275,8 @@ func parseUserIDParam(r *http.Request) (uint, error) {
 	rawID := chi.URLParam(r, "userID")
 
 	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil {
-		return 0, err
+	if err != nil || parsedID == 0 {
+		return 0, ErrInvalidInput
 	}
 
 	return uint(parsedID), nil
@@ -166,7 +293,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 
 	minExperience := 0
 	maxHourlyRate := 0
-	MaxTravelRadius := 0 
+	MaxTravelRadius := 0
 
 	if raw := r.URL.Query().Get("min_experience"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
@@ -199,7 +326,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := SearchProfilesRequest{
-		ClientID: 			currentUser.UserID ,
+		ClientID:           currentUser.UserID,
 		Country:            r.URL.Query().Get("country"),
 		City:               r.URL.Query().Get("city"),
 		Region:             r.URL.Query().Get("region"),
@@ -208,7 +335,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		ServicesOffered:    r.URL.Query().Get("services_offered"),
 		MinExperience:      minExperience,
 		MaxHourlyRate:      maxHourlyRate,
-		MaxTravelRadius:	MaxTravelRadius,
+		MaxTravelRadius:    MaxTravelRadius,
 		IsVerified:         IsVerified,
 	}
 
@@ -242,7 +369,7 @@ func (h *Handler) GetCancelledJobs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
-	}	
+	}
 
 	history, err := h.service.GetCancelledJobs(r.Context(), currentUser.UserID)
 	if err != nil {
@@ -254,7 +381,7 @@ func (h *Handler) GetCancelledJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetFullHistory(w http.ResponseWriter, r *http.Request) {
-	currentUser, err := identity.FromContext(r.Context()) 
+	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return

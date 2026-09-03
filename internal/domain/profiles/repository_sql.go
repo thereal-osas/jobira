@@ -10,10 +10,10 @@ import (
 )
 
 type SQLRepository struct {
-	db *sql.DB	
+	db *sql.DB
 }
 
-func NEWSQLRepository(db *sql.DB) *SQLRepository {
+func NewSQLRepository(db *sql.DB) *SQLRepository {
 	return &SQLRepository{
 		db: db,
 	}
@@ -75,7 +75,7 @@ func (r *SQLRepository) Create(ctx context.Context, profile *CleanerProfile) err
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
 			return ErrProfileAlreadyExists
 		}
-		
+
 		return err
 	}
 
@@ -172,7 +172,7 @@ func (r *SQLRepository) Update(ctx context.Context, profile *CleanerProfile) err
 	`
 
 	result, err := r.db.ExecContext(
-		ctx, 
+		ctx,
 		query,
 		profile.Bio,
 		profile.Location,
@@ -270,12 +270,12 @@ func (r *SQLRepository) Search(ctx context.Context, req SearchProfilesRequest) (
 		FROM cleaner_profiles 
 		WHERE 1=1	
 	`
-	
+
 	args := []interface{}{}
-	argPosition := 1 
+	argPosition := 1
 
 	if req.ClientID > 0 {
-	query += `
+		query += `
 		AND  user_id NOT IN (
 			SELECT cleaner_id
 			FROM blocked_cleaners
@@ -320,7 +320,7 @@ func (r *SQLRepository) Search(ctx context.Context, req SearchProfilesRequest) (
 		query += " AND LOWER(services_offered) LIKE LOWER($" + strconv.Itoa(argPosition) + ")"
 		args = append(args, "%"+req.ServicesOffered+"%")
 		argPosition++
-	} 
+	}
 
 	if req.MinExperience > 0 {
 		query += " AND years_experience >= $" + strconv.Itoa(argPosition)
@@ -331,6 +331,12 @@ func (r *SQLRepository) Search(ctx context.Context, req SearchProfilesRequest) (
 	if req.MaxHourlyRate > 0 {
 		query += " AND hourly_rate <= $" + strconv.Itoa(argPosition)
 		args = append(args, req.MaxHourlyRate)
+		argPosition++
+	}
+
+	if req.MaxTravelRadius > 0 {
+		query += " AND travel_radius_miles <= $" + strconv.Itoa(argPosition)
+		args = append(args, req.MaxTravelRadius)
 		argPosition++
 	}
 
@@ -374,7 +380,7 @@ func (r *SQLRepository) Search(ctx context.Context, req SearchProfilesRequest) (
 			&profile.HourlyRate,
 			&profile.ServicesOffered,
 			&profile.IsVerified,
-			&profile.VerificationStatus, 
+			&profile.VerificationStatus,
 			&profile.CreatedAt,
 			&profile.UpdatedAt,
 		)
@@ -416,7 +422,7 @@ func (r *SQLRepository) IncrementJobsCancelled(ctx context.Context, userID uint)
 		WHERE user_id = $2 	
 	`
 
-	_, err :=r.db.ExecContext(ctx, query, time.Now(), userID)
+	_, err := r.db.ExecContext(ctx, query, time.Now(), userID)
 
 	return err
 }
@@ -451,7 +457,7 @@ func (r *SQLRepository) RecalculateReputation(ctx context.Context, userID uint) 
 	return err
 }
 
-func (r *SQLRepository)GetCompletedJobs(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
+func (r *SQLRepository) GetCompletedJobs(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
 	query := `
 		SELECT 
 			a.id,
@@ -470,7 +476,7 @@ func (r *SQLRepository)GetCompletedJobs(ctx context.Context, userID uint) ([]Job
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
-	} 
+	}
 
 	defer rows.Close()
 
@@ -495,9 +501,14 @@ func (r *SQLRepository)GetCompletedJobs(ctx context.Context, userID uint) ([]Job
 		history = append(history, item)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return history, nil
 }
-func (r *SQLRepository)	GetCancelledJobs(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
+
+func (r *SQLRepository) GetCancelledJobs(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
 	query := `
 		SELECT 
 			a.id,
@@ -541,11 +552,14 @@ func (r *SQLRepository)	GetCancelledJobs(ctx context.Context, userID uint) ([]Jo
 		history = append(history, item)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return history, nil
 }
 
-
-func (r *SQLRepository)	GetFullHistory(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
+func (r *SQLRepository) GetFullHistory(ctx context.Context, userID uint) ([]JobHistoryItem, error) {
 	query := `
 		SELECT 
 			a.id,
@@ -586,6 +600,10 @@ func (r *SQLRepository)	GetFullHistory(ctx context.Context, userID uint) ([]JobH
 		}
 
 		history = append(history, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return history, nil

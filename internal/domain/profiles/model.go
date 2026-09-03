@@ -26,3 +26,31 @@ type CleanerProfile struct {
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 }
+
+type ProfileStrengthItem struct {
+	Code      string `json:"code"`
+	Label     string `json:"label"`
+	Completed bool   `json:"completed"`
+	Points    int    `json:"points"`
+}
+
+type ProfileStrength struct {
+	Percentage int `json:"percentage"`
+
+	CompletedItems int `json:"completed_items"`
+	TotalItems     int `json:"total_items"`
+
+	Items []ProfileStrengthItem `json:"items"`
+
+	NextAction string `json:"next_action"`
+
+	IsComplete bool `json:"is_complete"`
+}
+
+type NewOnJobiraStatus struct {
+	IsNew         bool      `json:"is_new"`
+	Label         string    `json:"label"`
+	JoinedAt      time.Time `json:"joined_at"`
+	DaysOnJobira  int       `json:"days_on_jobira"`
+	JobsCompleted int       `json:"jobs_completed"`
+}

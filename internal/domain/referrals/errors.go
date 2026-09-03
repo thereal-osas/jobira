@@ -8,7 +8,7 @@ var (
 	ErrReferralInactive     = errors.New("referral code inactive")
 	ErrReferralLimitReached = errors.New("referral usage limit reached")
 	ErrCannotReferSelf      = errors.New("cannot redeem your own referral code")
-	ErrAlreadyRedeemed      = errors.New("referral coee already redeemed")
+	ErrAlreadyRedeemed      = errors.New("referral code already redeemed")
 	ErrInvalidRewardType    = errors.New("invalid reward type")
 	ErrReferralCodeExists   = errors.New("referral code already exists")
 )

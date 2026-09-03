@@ -15,20 +15,23 @@ type SQLRepository struct {
 func NewSQLRepository(db *sql.DB) *SQLRepository {
 	return &SQLRepository{db: db}
 }
-
-func (r *SQLRepository) Create(ctx context.Context, booking *Booking) error {
+func (r *SQLRepository) Create(
+	ctx context.Context,
+	booking *Booking,
+) error {
 	query := `
 		INSERT INTO bookings (
-			job_id, 
+			job_id,
 			application_id,
 			client_id,
-			cleaner_id, 
-			status, 
+			cleaner_id,
+			status,
 			scheduled_at,
+			scheduled_end_at,
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -43,6 +46,7 @@ func (r *SQLRepository) Create(ctx context.Context, booking *Booking) error {
 		booking.CleanerID,
 		booking.Status,
 		booking.ScheduledAt,
+		booking.ScheduledEndAt,
 		now,
 	).Scan(
 		&booking.ID,
@@ -51,9 +55,13 @@ func (r *SQLRepository) Create(ctx context.Context, booking *Booking) error {
 	)
 
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "duplicate key") {
+		if strings.Contains(
+			strings.ToLower(err.Error()),
+			"duplicate key",
+		) {
 			return ErrBookingExists
 		}
+
 		return err
 	}
 
@@ -70,6 +78,7 @@ func (r *SQLRepository) GetByID(ctx context.Context, id uint) (*Booking, error) 
 			cleaner_id,
 			status,
 			scheduled_at,
+			scheduled_end_at,
 			completed_at,
 			cancelled_at,
 			COALESCE(cancellation_reason, ''),
@@ -92,6 +101,7 @@ func (r *SQLRepository) GetByID(ctx context.Context, id uint) (*Booking, error) 
 	var booking Booking
 	var applicationID sql.NullInt64
 	var ScheduledAt sql.NullTime
+	var ScheduledEndAt sql.NullTime
 	var CompletedAt sql.NullTime
 	var CancelledAt sql.NullTime
 	var closedAt sql.NullTime
@@ -106,6 +116,7 @@ func (r *SQLRepository) GetByID(ctx context.Context, id uint) (*Booking, error) 
 		&booking.CleanerID,
 		&booking.Status,
 		&ScheduledAt,
+		&ScheduledEndAt,
 		&CompletedAt,
 		&CancelledAt,
 		&booking.CancellationReason,
@@ -151,6 +162,10 @@ func (r *SQLRepository) GetByID(ctx context.Context, id uint) (*Booking, error) 
 		booking.ScheduledAt = &ScheduledAt.Time
 	}
 
+	if ScheduledEndAt.Valid {
+		booking.ScheduledEndAt = &ScheduledEndAt.Time
+	}
+
 	if CompletedAt.Valid {
 		booking.CompletedAt = &CompletedAt.Time
 	}
@@ -172,6 +187,7 @@ func (r *SQLRepository) ListByUserID(ctx context.Context, userID uint) ([]Bookin
 			cleaner_id,
 			status,
 			scheduled_at,
+			scheduled_end_at,
 			completed_at,
 			cancelled_at,
 			COALESCE(cancellation_reason, ''),
@@ -195,6 +211,7 @@ func (r *SQLRepository) ListByUserID(ctx context.Context, userID uint) ([]Bookin
 		var booking Booking
 		var applicationID sql.NullInt64
 		var ScheduledAt sql.NullTime
+		var ScheduledEndAt sql.NullTime
 		var CompletedAt sql.NullTime
 		var CancelledAt sql.NullTime
 
@@ -206,6 +223,7 @@ func (r *SQLRepository) ListByUserID(ctx context.Context, userID uint) ([]Bookin
 			&booking.CleanerID,
 			&booking.Status,
 			&ScheduledAt,
+			&ScheduledEndAt,
 			&CompletedAt,
 			&CancelledAt,
 			&booking.CancellationReason,
@@ -223,6 +241,10 @@ func (r *SQLRepository) ListByUserID(ctx context.Context, userID uint) ([]Bookin
 
 		if ScheduledAt.Valid {
 			booking.ScheduledAt = &ScheduledAt.Time
+		}
+
+		if ScheduledEndAt.Valid {
+			booking.ScheduledEndAt = &ScheduledEndAt.Time
 		}
 
 		if CompletedAt.Valid {
@@ -295,20 +317,37 @@ func (r *SQLRepository) Complete(ctx context.Context, bookingID uint, status str
 
 	return nil
 }
+func (r *SQLRepository) Cancel(
+	ctx context.Context,
+	bookingID uint,
+	cancelledBy uint,
+	reason string,
+) error {
+	if bookingID == 0 || cancelledBy == 0 {
+		return ErrInvalidInput
+	}
 
-func (r *SQLRepository) Cancel(ctx context.Context, bookingID uint, reason string) error {
 	query := `
 		UPDATE bookings
-		SET status = 'cancelled',
+		SET
+			status = 'cancelled',
 			cancelled_at = $1,
 			cancellation_reason = $2,
+			cancelled_by = $3,
 			updated_at = $1
-		WHERE id = $3	
+		WHERE id = $4
 	`
 
 	now := time.Now()
 
-	result, err := r.db.ExecContext(ctx, query, now, reason, bookingID)
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		now,
+		reason,
+		cancelledBy,
+		bookingID,
+	)
 	if err != nil {
 		return err
 	}
@@ -415,10 +454,10 @@ func (r *SQLRepository) CloseWithTransaction(ctx context.Context, input CloseBoo
 		return err
 	}
 
-	commited := false
+	committed := false
 
 	defer func() {
-		if !commited {
+		if !committed {
 			_ = tx.Rollback()
 		}
 	}()
@@ -435,7 +474,7 @@ func (r *SQLRepository) CloseWithTransaction(ctx context.Context, input CloseBoo
 			client_would_hire_again = $2,
 			closure_comment = $3,
 			closed_at = $4,
-			updated_at $4
+			updated_at = $4
 		WHERE id = $5
 		AND status = 'completed'	
 	`
@@ -487,6 +526,11 @@ func (r *SQLRepository) CloseWithTransaction(ctx context.Context, input CloseBoo
 		input.Comment,
 		now,
 	)
+
+	if err != nil {
+		return err
+	}
+
 	if input.AddToFavourites {
 		addFavouriteQuery := `
 			INSERT INTO favorite_cleaners (
@@ -568,7 +612,7 @@ func (r *SQLRepository) CloseWithTransaction(ctx context.Context, input CloseBoo
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, 'booking' $4, $4)
+		VALUES ($1, $2, $3, 'booking', false, $4, $4)
 	`
 
 	_, err = tx.ExecContext(
@@ -587,7 +631,44 @@ func (r *SQLRepository) CloseWithTransaction(ctx context.Context, input CloseBoo
 		return err
 	}
 
-	commited = true
+	committed = true
 
 	return nil
+}
+
+func (r *SQLRepository) HasScheduleConflict(ctx context.Context, cleanerID uint, startAt time.Time, endAt time.Time, excludeBookingID uint) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM bookings
+			WHERE cleaner_id = $1
+				AND id <> $2
+				AND status IN (
+					'pending',
+					'confirmed',
+					'in_progress'
+				)
+				AND scheduled_at IS NOT NULL
+				AND scheduled_end_at IS NOT NULL
+				AND scheduled_at < $4
+				AND scheduled_end_at > $3
+		)
+	`
+
+	var conflict bool
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+		excludeBookingID,
+		startAt,
+		endAt,
+	).Scan(&conflict)
+
+	if err != nil {
+		return false, err
+	}
+
+	return conflict, nil
 }

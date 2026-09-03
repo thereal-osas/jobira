@@ -11,6 +11,10 @@ import (
 	usagedomain "github.com/rodrigueghenda/jobira/internal/domain/subscriptions/usage"
 )
 
+type TimeLineRecorder interface {
+	Record(ctx context.Context, applicationID uint, status string, actorUserID uint, note string) error
+}
+
 type Service struct {
 	repo                 Repository
 	notificationsService *notificationsdomain.Service
@@ -18,6 +22,7 @@ type Service struct {
 	usageService         *usagedomain.Service
 	emailService         *emaildomain.Service
 	subscriptionaccess   *subscriptionaccess.Service
+	timelineRecorder     TimeLineRecorder
 }
 
 func NewService(repo Repository, notificationsService *notificationsdomain.Service, profilesService *profiles.Service, usageService *usagedomain.Service, emailService *emaildomain.Service, subscriptionAccess *subscriptionaccess.Service) *Service {
@@ -30,6 +35,11 @@ func NewService(repo Repository, notificationsService *notificationsdomain.Servi
 		subscriptionaccess:   subscriptionAccess,
 	}
 }
+
+func (s *Service) SetTimelineRecorder(recorder TimeLineRecorder) {
+	s.timelineRecorder = recorder
+}
+
 func (s *Service) Apply(ctx context.Context, jobID uint, cleanerID uint, req CreateApplicationRequest) (*Application, error) {
 	req.CoverMessage = strings.TrimSpace(req.CoverMessage)
 
@@ -74,8 +84,21 @@ func (s *Service) Apply(ctx context.Context, jobID uint, cleanerID uint, req Cre
 		Status:       "pending",
 	}
 
+	// applications is created here
 	if err := s.repo.Create(ctx, application); err != nil {
 		return nil, err
+	}
+
+	if s.timelineRecorder != nil {
+		if err := s.timelineRecorder.Record(
+			ctx,
+			application.ID,
+			"pending",
+			cleanerID,
+			"Application submitted",
+		); err != nil {
+			return nil, err
+		}
 	}
 
 	if s.subscriptionaccess != nil {
@@ -219,6 +242,20 @@ func (s *Service) UpdateStatus(
 		return nil, err
 	}
 
+	if s.timelineRecorder != nil &&
+		foundApplication.Status != req.Status {
+
+		if err := s.timelineRecorder.Record(
+			ctx,
+			applicationID,
+			req.Status,
+			userID,
+			statusTimeLineNote(req.Status),
+		); err != nil {
+			return nil, err
+		}
+	}
+
 	if s.notificationsService != nil {
 		_, _ = s.notificationsService.Create(
 			ctx,
@@ -269,4 +306,26 @@ func isAllowedStatus(status string) bool {
 	}
 
 	return false
+}
+
+func statusTimeLineNote(status string) string {
+	switch status {
+	case "pending":
+		return "Application pending"
+	case "shortlisted":
+		return "Application shortlisted"
+	case "invited":
+		return "Cleaner invited"
+	case "accepted":
+		return "Application accepted"
+	case "rejected":
+		return "Application rejected"
+	case "completed":
+		return "Job completed"
+	case "cancelled":
+		return "Application cancelled"
+	default:
+		return ""
+
+	}
 }

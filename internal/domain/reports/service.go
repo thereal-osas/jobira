@@ -84,7 +84,7 @@ func (s *Service) Review(ctx context.Context, reportID uint, adminID uint, req R
 	}
 
 	if !isAllowedReportStatus(req.Status) {
-		return nil, ErrInvalidInput
+		return nil, ErrInvalidReportStatus
 	}
 
 	if err := s.repo.Review(ctx, reportID, req.Status, req.AdminNotes, adminID); err != nil {

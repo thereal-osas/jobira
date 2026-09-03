@@ -22,11 +22,11 @@ func (i *Issuer) Generate(userID uint, email, role string) (string, error) {
 
 	claims := Claims{
 		UserID: userID,
-		Email: email,
-		Role: role,
+		Email:  email,
+		Role:   role,
 		RegisteredClaims: jwtlib.RegisteredClaims{
-			Subject: fmt.Sprintf("%d", userID),
-			IssuedAt: jwtlib.NewNumericDate(now),
+			Subject:   fmt.Sprintf("%d", userID),
+			IssuedAt:  jwtlib.NewNumericDate(now),
 			ExpiresAt: jwtlib.NewNumericDate(now.Add(24 * time.Hour)),
 		},
 	}
@@ -37,12 +37,12 @@ func (i *Issuer) Generate(userID uint, email, role string) (string, error) {
 }
 
 func (i *Issuer) Parse(tokenString string) (*Claims, error) {
-	token, err := jwtlib.ParseWithClaims(tokenString, &Claims{}, func(token *jwtlib.Token) (any, error)  {
-		if _, ok := token.Method.(*jwtlib.SigningMethodHMAC); !ok {
+	token, err := jwtlib.ParseWithClaims(tokenString, &Claims{}, func(token *jwtlib.Token) (any, error) {
+		if token.Method.Alg() != jwtlib.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing method")
-		 }
+		}
 
-		 return i.secret, nil
+		return i.secret, nil
 	})
 	if err != nil {
 		return nil, err

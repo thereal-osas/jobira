@@ -112,15 +112,48 @@ func (s *Service) CanPostJob(ctx context.Context, userID uint) error {
 
 	return nil
 }
+func (s *Service) IncrementApplicationCount(
+	ctx context.Context,
+	userID uint,
+) error {
+	if userID == 0 {
+		return ErrInvalidInput
+	}
 
-func (s *Service) IncrementApplicationCount(ctx context.Context, userID uint) error {
-	return s.repo.IncrementApplicationCount(ctx, userID)
+	return s.repo.IncrementApplicationCount(
+		ctx,
+		userID,
+	)
 }
-func (s *Service) IncrementJobPostCount(ctx context.Context, userID uint) error {
-	return s.repo.IncrementJobPostCount(ctx, userID)
+
+func (s *Service) IncrementJobPostCount(
+	ctx context.Context,
+	userID uint,
+) error {
+	if userID == 0 {
+		return ErrInvalidInput
+	}
+
+	return s.repo.IncrementJobPostCount(
+		ctx,
+		userID,
+	)
 }
-func (s *Service) SetMonetisationEnabled(ctx context.Context, userID uint, enabled bool) error {
-	return s.repo.SetMonetisationEnabled(ctx, userID, enabled)
+
+func (s *Service) SetMonetisationEnabled(
+	ctx context.Context,
+	userID uint,
+	enabled bool,
+) error {
+	if userID == 0 {
+		return ErrInvalidInput
+	}
+
+	return s.repo.SetMonetisationEnabled(
+		ctx,
+		userID,
+		enabled,
+	)
 }
 
 func isSubscriptionAllowed(status string) bool {

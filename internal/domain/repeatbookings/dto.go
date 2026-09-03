@@ -11,6 +11,7 @@ type CreateRepeatBookingRequest struct {
 }
 
 type BookingAgainRequest struct {
-	ScheduledAt string `json:"scheduled_at"`
-	Message     string `json:"message"`
+	ScheduledAt    string `json:"scheduled_at"`
+	ScheduledEndAt string `json:"scheduled_end_at"`
+	Message        string `json:"message"`
 }

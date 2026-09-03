@@ -62,7 +62,7 @@ func (s *Service) Create(ctx context.Context, jobID uint, clientID uint, req Cre
 		Comment:   req.Comment,
 	}
 
-	if jobID == 0 || clientID == 0 || req.BookingID == 0 {
+	if req.BookingID == 0 {
 		return nil, ErrInvalidInput
 	}
 

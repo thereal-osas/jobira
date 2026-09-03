@@ -70,7 +70,7 @@ func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]Re
 		if err != nil {
 			return nil, err
 		}
-		
+
 		views = append(views, view)
 	}
 
@@ -78,5 +78,120 @@ func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]Re
 		return nil, err
 	}
 
-	return views, nil 
+	return views, nil
+}
+
+func (r *SQLRepository) CountByCleanerID(ctx context.Context, cleanerID uint) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM recently_viewed_cleaners
+		WHERE cleaner_id = $1
+	`
+
+	var count int
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *SQLRepository) CountUniqueViewersByCleanerID(ctx context.Context, cleanerID uint) (int, error) {
+	query := `
+		SELECT COUNT(DISTINCT client_id)
+		FROM recently_viewed_cleaners
+		WHERE cleaner_id = $1
+	`
+
+	var count int
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *SQLRepository) CountByCleanerIDSince(ctx context.Context, cleanerID uint, since time.Time) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM recently_viewed_cleaners
+		WHERE cleaner_id = $1
+		  AND viewed_at >= $2
+	`
+
+	var count int
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+		since,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *SQLRepository) CountByClenaerIDBetween(ctx context.Context, cleanerID uint, from time.Time, to time.Time) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM recently_viewed_cleaners
+		WHERE cleaner_id = $1
+		  AND viewed_at >= $2
+		  AND viewed_at < $3
+	`
+
+	var count int
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+		from,
+		to,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *SQLRepository) CountByCleanerIDBetween(ctx context.Context, cleanerID uint, from time.Time, to time.Time) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM recently_viewed_cleaners
+		WHERE cleaner_id = $1
+		  AND viewed_at >= $2
+		  AND viewed_at < $3
+	`
+
+	var count int
+
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		cleanerID,
+		from,
+		to,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }

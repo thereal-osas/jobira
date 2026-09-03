@@ -5,7 +5,7 @@ import "time"
 type Report struct {
 	ID             uint       `json:"id"`
 	ReporterID     uint       `json:"reporter_id"`
-	ReportedUserID *uint      `json:"reportered_user_id"`
+	ReportedUserID *uint      `json:"reported_user_id"`
 	JobID          *uint      `json:"job_id"`
 	BookingID      *uint      `json:"booking_id"`
 	ReportType     string     `json:"report_type"`

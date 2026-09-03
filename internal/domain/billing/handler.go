@@ -69,7 +69,7 @@ func (h *Handler) CreateBillingPortalSession(w http.ResponseWriter, r *http.Requ
 
 	portalSession, err := h.service.CreateBillingPortalSession(r.Context(), currentUser.UserID)
 	if errors.Is(err, ErrInvalidInput) {
-		response.Error(w, http.StatusNotFound, err.Error())
+		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -109,7 +109,6 @@ func (h *Handler) StripeWebhook(w http.ResponseWriter, r *http.Request) {
 		"message": "webhook received",
 	})
 }
-
 
 func (h *Handler) ValidatePromoCode(w http.ResponseWriter, r *http.Request) {
 	currentUser, err := identity.FromContext(r.Context())

@@ -16,7 +16,7 @@ func NewSQLRepository(db *sql.DB) *SQLRepository {
 func (r *SQLRepository) CountFavourites(ctx context.Context, cleanerID uint) (int, error) {
 	query := `
 		SELECT COUNT(*)
-		FROM favourite_cleaners
+		FROM favorite_cleaners
 		WHERE cleaner_id = $1
 	`
 

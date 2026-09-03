@@ -5,22 +5,31 @@ import (
 	"strings"
 
 	notificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/notifications"
-	blockedcleanersdomain "github.com/rodrigueghenda/jobira/internal/domain/blockedcleaners"
 )
 
-type Service struct {
-	repo 		Repository
-	notificationsService *notificationsdomain.Service
-	blockChecker 		 *blockedcleanersdomain.Checker	
+type BlockChecker interface {
+	IsBlocked(
+		ctx context.Context,
+		clientID uint,
+		cleanerID uint,
+	) (bool, error)
 }
+
+type Service struct {
+	repo                 Repository
+	notificationsService *notificationsdomain.Service
+	blockChecker         BlockChecker
+}
+
 func NewService(
-	repo Repository, notificationsService *notificationsdomain.Service,
-	blockChecker *blockedcleanersdomain.Checker,
+	repo Repository,
+	notificationsService *notificationsdomain.Service,
+	blockChecker BlockChecker,
 ) *Service {
 	return &Service{
-		repo: repo,
+		repo:                 repo,
 		notificationsService: notificationsService,
-		blockChecker: blockChecker,
+		blockChecker:         blockChecker,
 	}
 }
 
@@ -44,7 +53,11 @@ func (s *Service) Create(ctx context.Context, jobID uint, clientID uint, req Cre
 		return nil, ErrForbidden
 	}
 
-	exists, err := s.repo.Exists(ctx, jobID, req.CleanerID)
+	exists, err := s.repo.Exists(
+		ctx,
+		jobID,
+		req.CleanerID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +67,11 @@ func (s *Service) Create(ctx context.Context, jobID uint, clientID uint, req Cre
 	}
 
 	if s.blockChecker != nil {
-		blocked, err := s.blockChecker.IsBlocked(ctx, clientID, req.CleanerID)
+		blocked, err := s.blockChecker.IsBlocked(
+			ctx,
+			clientID,
+			req.CleanerID,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -65,30 +82,36 @@ func (s *Service) Create(ctx context.Context, jobID uint, clientID uint, req Cre
 	}
 
 	invitation := &JobInvitation{
-		JobID: jobID,
-		ClientID: clientID,
+		JobID:     jobID,
+		ClientID:  clientID,
 		CleanerID: req.CleanerID,
-		Status: "sent",
-		Message: req.Message,
+		Status:    "sent",
+		Message:   req.Message,
 	}
 
 	if err := s.repo.Create(ctx, invitation); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	if s.notificationsService != nil {
-		_, _ = s.notificationsService.Create(ctx, notificationsdomain.CreateNotificationsRequest{
-			UserID: req.CleanerID,
-			Title: "New job invitation",
-			Message: "A client invited you to apply for a job",
-			Type: "job_invitations",
-		})
+		_, _ = s.notificationsService.Create(
+			ctx,
+			notificationsdomain.CreateNotificationsRequest{
+				UserID:  req.CleanerID,
+				Title:   "New job invitation",
+				Message: "A client invited you to apply for a job",
+				Type:    "job_invitations",
+			},
+		)
 	}
 
 	return invitation, nil
 }
 
-func (s *Service) ListSent(ctx context.Context, clientID uint) ([]JobInvitation, error) {
+func (s *Service) ListSent(
+	ctx context.Context,
+	clientID uint,
+) ([]JobInvitation, error) {
 	if clientID == 0 {
 		return nil, ErrInvalidInput
 	}

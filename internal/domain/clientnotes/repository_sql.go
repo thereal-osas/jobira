@@ -8,14 +8,14 @@ import (
 
 type SQLRepository struct {
 	db *sql.DB
-} 
+}
 
 func NewSQLRepository(db *sql.DB) *SQLRepository {
 	return &SQLRepository{db: db}
 }
 
 func (r *SQLRepository) Create(ctx context.Context, note *ClientCleanerNote) error {
-	query :=  `
+	query := `
 		INSERT INTO client_cleaner_notes (
 			client_id,
 			cleaner_id,
@@ -25,7 +25,7 @@ func (r *SQLRepository) Create(ctx context.Context, note *ClientCleanerNote) err
 		)
 			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id, created_at, updated_at 
-	`	
+	`
 
 	now := time.Now()
 
@@ -45,7 +45,7 @@ func (r *SQLRepository) Create(ctx context.Context, note *ClientCleanerNote) err
 }
 
 func (r *SQLRepository) GetByCleanerID(ctx context.Context, clientID uint, cleanerID uint) ([]ClientCleanerNote, error) {
-	query :=  `
+	query := `
 		SELECT 
 			id,
 			client_id,
@@ -59,7 +59,7 @@ func (r *SQLRepository) GetByCleanerID(ctx context.Context, clientID uint, clean
 		ORDER BY created_at DESC 	
 	`
 
-	rows, err  := r.db.QueryContext(ctx, query, clientID, cleanerID)
+	rows, err := r.db.QueryContext(ctx, query, clientID, cleanerID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,29 @@ func (r *SQLRepository) Update(ctx context.Context, noteID uint, clientID uint, 
 	AND client_id = $4 	
 	`
 
-	_, err  := r.db.ExecContext(ctx, query, note, time.Now(), noteID, clientID)
-	return err
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		note,
+		time.Now(),
+		noteID,
+		clientID,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNoteNotFound
+	}
+
+	return nil
+
 }
 
 func (r *SQLRepository) Delete(ctx context.Context, noteID uint, clientID uint) error {
@@ -109,12 +130,25 @@ func (r *SQLRepository) Delete(ctx context.Context, noteID uint, clientID uint) 
 		WHERE id = $1 
 		AND client_id = $2 
 	`
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		noteID,
+		clientID,
+	)
+	if err != nil {
+		return err
+	}
 
-	_, err := r.db.ExecContext(ctx, query, noteID, clientID)
-	return err
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNoteNotFound
+	}
+
+	return nil
+
 }
-
-	
-	
-	
-	

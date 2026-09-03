@@ -42,7 +42,7 @@ func BookingCompletedEmail(to string) EmailMessage {
 	}
 }
 
-func JobInvitatoinEmail(to string, message string) EmailMessage {
+func JobInvitationEmail(to string, message string) EmailMessage {
 	return EmailMessage{
 		To:      to,
 		Subject: "You have received a job invitation",
@@ -57,7 +57,7 @@ func SubscriptionLimitReachedEmail(to string) EmailMessage {
 	return EmailMessage{
 		To:      to,
 		Subject: "Jobira usage limit reached",
-		Body:    "You have reached your free usage limit.\n\nPlease upgrade your subscription to coninue using Jobira.",
+		Body:    "You have reached your free usage limit.\n\nPlease upgrade your subscription to continue using Jobira.",
 	}
 }
 
@@ -66,7 +66,7 @@ func BookingCancelledEmail(to string, reason string) EmailMessage {
 		To:      to,
 		Subject: "Booking cancelled",
 		Body: fmt.Sprintf(
-			"Your booking has been cancelled.\n\nReason:\n%s\n\nLog in to Jobira ot view the booking details.",
+			"Your booking has been cancelled.\n\nReason:\n%s\n\nLog in to Jobira to view the booking details.",
 			reason,
 		),
 	}

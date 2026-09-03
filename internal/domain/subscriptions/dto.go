@@ -4,7 +4,7 @@ type CreateSubscriptionRequest struct {
 	PlanID uint	`json:"plan_id"`
 }
 
-type UpdateSubcriptionStatusRequest struct {
+type UpdateSubscriptionStatusRequest struct {
 	Status string `json:"status"`
 }
 

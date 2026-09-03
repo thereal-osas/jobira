@@ -23,8 +23,12 @@ func (s *Service) ListOpenReports(ctx context.Context) ([]CleanerReportAdminView
 func (s *Service) ListBlockCleaners(ctx context.Context) ([]BlockedCleanerAdminView, error) {
 	return s.repo.ListBlockCleaners(ctx)
 }
-
-func (s *Service) UpdateReportStatus(ctx context.Context, reportID uint, adminID uint, req UpdateReportStatusRequest,) error {
+func (s *Service) UpdateReportStatus(
+	ctx context.Context,
+	reportID uint,
+	adminID uint,
+	req UpdateReportStatusRequest,
+) error {
 	req.Status = strings.TrimSpace(req.Status)
 	req.AdminNote = strings.TrimSpace(req.AdminNote)
 
@@ -33,15 +37,11 @@ func (s *Service) UpdateReportStatus(ctx context.Context, reportID uint, adminID
 	}
 
 	if !isAllowedReportStatus(req.Status) {
-		return ErrInvalidInput
-	}
-
-	if !isAllowedReportStatus(req.Status) {
-		return ErrInvalidInput
+		return ErrInvalidStatus
 	}
 
 	return s.repo.UpdateReportStatus(
-		ctx, 
+		ctx,
 		reportID,
 		adminID,
 		req.Status,

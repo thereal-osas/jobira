@@ -10,9 +10,11 @@ type Booking struct {
 	CleanerID                 uint       `json:"cleaner_id"`
 	Status                    string     `json:"status"`
 	ScheduledAt               *time.Time `json:"scheduled_at"`
+	ScheduledEndAt            *time.Time `json:"scheduled_end_at"`
 	CompletedAt               *time.Time `json:"completed_at"`
 	CancelledAt               *time.Time `json:"cancelled_at"`
 	CancellationReason        string     `json:"cancellation_reason"`
+	CancelledBy               *uint      `json:"cancelled_by,omitempty"`
 	CreatedAt                 time.Time  `json:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at"`
 	ClosedAt                  *time.Time `json:"closed_at"`

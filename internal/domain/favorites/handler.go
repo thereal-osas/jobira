@@ -28,7 +28,7 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req CreateFavoriteRequest 
+	var req CreateFavoriteRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid request body")
@@ -100,13 +100,22 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errors.Is(err, ErrFavoriteNotFound) {
+		response.Error(
+			w,
+			http.StatusNotFound,
+			err.Error(),
+		)
+		return
+	}
+
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response.JSON(w, http.StatusOK, map[string]string{
-		"message": "favorite removed", 
+		"message": "favorite removed",
 	})
 }
 

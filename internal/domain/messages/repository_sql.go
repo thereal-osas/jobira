@@ -30,16 +30,16 @@ func (r *SQLRepository) Create(ctx context.Context, message *Message) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 		`
-	
+
 	now := time.Now()
-	
+
 	message.IsRead = false
 	message.CreatedAt = now
 	message.UpdatedAt = now
 
 	return r.db.QueryRowContext(
-		ctx, 
-		query, 
+		ctx,
+		query,
 		message.JobID,
 		message.SenderID,
 		message.ReceiverID,
@@ -94,6 +94,10 @@ func (r *SQLRepository) ListByJobID(ctx context.Context, jobID uint) ([]Message,
 		}
 
 		messages = append(messages, message)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return messages, nil

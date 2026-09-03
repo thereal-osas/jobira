@@ -1,10 +1,11 @@
 package bookings
 
 type CreateBookingRequest struct {
-	JobID         uint   `json:"job_id"`
-	ApplicationID *uint  `json:"application_id"`
-	CleanerID     uint   `json:"cleaner_id"`
-	ScheduledAt   string `json:"scheduled_at"`
+	JobID          uint   `json:"job_id"`
+	ApplicationID  *uint  `json:"application_id"`
+	CleanerID      uint   `json:"cleaner_id"`
+	ScheduledAt    string `json:"scheduled_at"`
+	ScheduledEndAt string `json:"scheduled_end_at"`
 }
 
 type CancelBookingRequest struct {

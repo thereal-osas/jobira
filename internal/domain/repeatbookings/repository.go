@@ -12,5 +12,6 @@ type Repository interface {
 	ListByClientID(ctx context.Context, clientID uint) ([]RepeatBooking, error)
 	GetOriginBooking(ctx context.Context, bookingID uint) (*BookingSnapshot, error)
 	CreateBookAgainRequest(ctx context.Context, request *RepeatBookingRequest) error
-	CreateRepeatBookings(ctx context.Context, booking *BookingSnapshot, scheduledAt time.Time) (uint, error)
+	CreateRepeatBookings(ctx context.Context, booking *BookingSnapshot, scheduledAt time.Time, scheduledEndAt time.Time) (uint, error)
+	CreateBookAgainTransaction(ctx context.Context, input BookAgainTransaction) (*RepeatBookingRequest, error)
 }

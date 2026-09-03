@@ -37,20 +37,31 @@ func (r *SQLRepository) Create(ctx context.Context, favorite *FavoriteCleaner) e
 }
 
 func (r *SQLRepository) Delete(ctx context.Context, clientID uint, cleanerID uint) error {
-	query:= `
+	query := `
 		DELETE FROM favorite_cleaners
 		WHERE client_id = $1 
 		AND cleaner_id = $2 
 	`
-
-	_, err := r.db.ExecContext(
+	result, err := r.db.ExecContext(
 		ctx,
 		query,
 		clientID,
 		cleanerID,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrFavoriteNotFound
+	}
+
+	return nil
 }
 
 func (r *SQLRepository) ListByClientID(ctx context.Context, clientID uint) ([]FavoriteCleaner, error) {
@@ -119,4 +130,3 @@ func (r *SQLRepository) Exists(ctx context.Context, clientID uint, cleanerID uin
 
 	return exists, err
 }
-

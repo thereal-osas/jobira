@@ -26,19 +26,6 @@ func (s *Service) GetClientAccessStatus(ctx context.Context, userID uint) (*Clie
 	return s.repo.GetClientAccessStatus(ctx, userID)
 }
 
-func (s *Service) EnableCanApply(ctx context.Context, userID uint) error {
-	status, err := s.GetCleanerAccessStatus(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	if !status.CanApply {
-		return ErrDailyApplicationLimit
-	}
-
-	return nil
-}
-
 func (s *Service) EnsureCanPostJob(ctx context.Context, userID uint) error {
 	status, err := s.GetClientAccessStatus(ctx, userID)
 	if err != nil {
@@ -67,7 +54,6 @@ func (s *Service) IncrementJobsPostToday(ctx context.Context, userID uint) error
 
 	return s.repo.IncrementJobsPostToday(ctx, userID)
 }
-
 
 func (s *Service) EnsureCanApply(ctx context.Context, userID uint) error {
 	status, err := s.GetCleanerAccessStatus(ctx, userID)

@@ -111,10 +111,6 @@ func isAllowedVerificationStatus(status string) bool {
 		return true
 	}
 
-	if status == "pending" {
-		return true
-	}
-
 	if status == "approved" {
 		return true
 	}

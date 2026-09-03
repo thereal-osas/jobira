@@ -95,7 +95,7 @@ func (r *SQLRepository) OpenReports(ctx context.Context) (int, error) {
 
 	query := `
 		SELECT COUNT (*)
-		FROM reports
+		FROM cleaner_reports
 		WHERE status = 'open'
 	`
 

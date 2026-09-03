@@ -32,8 +32,8 @@ func Auth(jwtIssuer *jwtsecurity.Issuer) func(http.Handler) http.Handler {
 			}
 
 			userID, err := strconv.ParseUint(claims.Subject, 10, 64)
-			if err != nil {
-				response.Error(w, http.StatusUnauthorized, "invalid or expire token")
+			if err != nil || userID == 0 {
+				response.Error(w, http.StatusUnauthorized, "invalid or expired token")
 				return
 			}
 

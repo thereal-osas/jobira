@@ -4,27 +4,26 @@ import (
 	"context"
 	"strings"
 
-notificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/notifications"
-	
+	notificationsdomain "github.com/rodrigueghenda/jobira/internal/domain/notifications"
 )
 
 type Service struct {
-	repo Repository
-	notificationsService  *notificationsdomain.Service
+	repo                 Repository
+	notificationsService *notificationsdomain.Service
 }
 
 func NewService(repo Repository, notificationsService *notificationsdomain.Service) *Service {
 	return &Service{
-		repo: repo,
+		repo:                 repo,
 		notificationsService: notificationsService,
 	}
 }
 
 func (s *Service) Send(
-	ctx context.Context, 
+	ctx context.Context,
 	jobID uint,
 	senderID uint,
-	req SendMessageRequest,  
+	req SendMessageRequest,
 ) (*Message, error) {
 	req.Content = strings.TrimSpace(req.Content)
 
@@ -45,11 +44,24 @@ func (s *Service) Send(
 		return nil, ErrForbidden
 	}
 
+	receiverIsParticipant, err := s.repo.IsJobParticipant(
+		ctx,
+		jobID,
+		req.ReceiverID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if !receiverIsParticipant {
+		return nil, ErrForbidden
+	}
+
 	message := &Message{
-		JobID: jobID,
-		SenderID: senderID,
+		JobID:      jobID,
+		SenderID:   senderID,
 		ReceiverID: req.ReceiverID,
-		Content: req.Content,
+		Content:    req.Content,
 	}
 
 	if err := s.repo.Create(ctx, message); err != nil {
@@ -58,21 +70,20 @@ func (s *Service) Send(
 
 	if s.notificationsService != nil {
 		_, _ = s.notificationsService.Create(ctx, notificationsdomain.CreateNotificationsRequest{
-			UserID: req.ReceiverID,
-			Title: "New Message",
+			UserID:  req.ReceiverID,
+			Title:   "New Message",
 			Message: "You received a new message.",
-			Type: "message",
+			Type:    "message",
 		})
 	}
 
 	return message, nil
 
-
 }
 
 func (s *Service) ListConversation(
 	ctx context.Context,
-	jobID uint, 
+	jobID uint,
 	userID uint,
 ) ([]Message, error) {
 

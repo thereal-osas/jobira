@@ -41,7 +41,7 @@ func (s *Service) Dashboard(ctx context.Context) (*DashboardStatus, error) {
 		return nil, err
 	}
 
-	pendingVerfications, err := s.repo.PendingVerifications(ctx)
+	pendingVerifications, err := s.repo.PendingVerifications(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (s *Service) Dashboard(ctx context.Context) (*DashboardStatus, error) {
 		Companies:            companies,
 		ActiveJobs:           activeJobs,
 		CompletedBookings:    completedBookings,
-		PendingVerifications: pendingVerfications,
+		PendingVerifications: pendingVerifications,
 		OpenReports:          openReports,
 		BookingsToday:        bookingsToday,
 	}

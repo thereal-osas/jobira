@@ -18,16 +18,27 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) GetByBookingID(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetByBookingID(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	currentUser, err := identity.FromContext(r.Context())
 	if err != nil {
-		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		response.Error(
+			w,
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
 		return
 	}
 
 	bookingID, err := parseBookingID(r)
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid booking id")
+		response.Error(
+			w,
+			http.StatusBadRequest,
+			"invalid booking id",
+		)
 		return
 	}
 
@@ -38,35 +49,61 @@ func (h *Handler) GetByBookingID(w http.ResponseWriter, r *http.Request) {
 		currentUser.Role,
 	)
 
-	if errors.Is(err, ErrInvalidInput) {
-		response.Error(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-		if errors.Is(err, ErrBookingNotFound) {
-		response.Error(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-		if errors.Is(err, ErrForbidden) {
-		response.Error(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		switch {
+		case errors.Is(err, ErrInvalidInput):
+			response.Error(
+				w,
+				http.StatusBadRequest,
+				err.Error(),
+			)
+
+		case errors.Is(err, ErrBookingNotFound):
+			response.Error(
+				w,
+				http.StatusNotFound,
+				err.Error(),
+			)
+
+		case errors.Is(err, ErrForbidden):
+			response.Error(
+				w,
+				http.StatusForbidden,
+				err.Error(),
+			)
+
+		default:
+			response.Error(
+				w,
+				http.StatusInternalServerError,
+				err.Error(),
+			)
+		}
+
 		return
 	}
 
-	response.JSON(w, http.StatusOK, timeline)
+	response.JSON(
+		w,
+		http.StatusOK,
+		timeline,
+	)
 }
+func parseBookingID(
+	r *http.Request,
+) (uint, error) {
+	rawID := chi.URLParam(
+		r,
+		"bookingID",
+	)
 
-func parseBookingID(r *http.Request) (uint, error) {
-	rawID := chi.URLParam(r, "bookingID")
-
-	parsedID, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil {
-		return 0, err
+	parsedID, err := strconv.ParseUint(
+		rawID,
+		10,
+		64,
+	)
+	if err != nil || parsedID == 0 {
+		return 0, ErrInvalidInput
 	}
 
 	return uint(parsedID), nil

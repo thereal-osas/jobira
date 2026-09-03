@@ -130,6 +130,84 @@ func (m *mockRepository) DeleteBlock(
 	return nil
 }
 
+func (m *mockRepository) ListByCleanerIDRange(
+	ctx context.Context,
+	cleanerID uint,
+	fromDate string,
+	toDate string,
+) ([]CleanerAvailability, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) ListBlocksByCleanerIDRange(
+	ctx context.Context,
+	cleanerID uint,
+	startAt time.Time,
+	endAt time.Time,
+) ([]AvailabilityBlock, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) CreateRecurring(
+	ctx context.Context,
+	recurring *RecurringAvailability,
+) error {
+	return nil
+}
+
+func (m *mockRepository) ListRecurringByCleanerID(
+	ctx context.Context,
+	cleanerID uint,
+) ([]RecurringAvailability, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) DeleteRecurring(
+	ctx context.Context,
+	recurringID uint,
+	cleanerID uint,
+) error {
+	return nil
+}
+
+func (m *mockRepository) UpsertSettings(
+	ctx context.Context,
+	settings *AvailabilitySettings,
+) error {
+	return nil
+}
+
+func (m *mockRepository) GetSettings(
+	ctx context.Context,
+	cleanerID uint,
+) (*AvailabilitySettings, error) {
+	return nil, ErrAvailabilitySettingsNotFound
+}
+
+func (m *mockRepository) CreateOverride(
+	ctx context.Context,
+	override *AvailabilityOverride,
+) error {
+	return nil
+}
+
+func (m *mockRepository) ListOverridesByCleanerIDRange(
+	ctx context.Context,
+	cleanerID uint,
+	fromDate string,
+	toDate string,
+) ([]AvailabilityOverride, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) DeleteOverride(
+	ctx context.Context,
+	overrideID uint,
+	cleanerID uint,
+) error {
+	return nil
+}
+
 func TestNewService(t *testing.T) {
 	repo := &mockRepository{}
 
@@ -695,16 +773,21 @@ func TestService_CreateBlock_Success(t *testing.T) {
 	}
 
 	service := NewService(repo)
+	startAt := time.Now().Add(24 * time.Hour)
+	endAt := startAt.Add(2 * time.Hour)
+
+	req := CreateAvailabilityBlockRequest{
+		StartAt: startAt.Format(time.RFC3339),
+		EndAt:   endAt.Format(time.RFC3339),
+		Reason:  "personal appointment",
+	}
 
 	block, err := service.CreateBlock(
 		context.Background(),
 		8,
-		CreateAvailabilityBlockRequest{
-			StartAt: "2026-08-10T09:00:00Z",
-			EndAt:   "2026-08-10T17:00:00Z",
-			Reason:  "Holiday",
-		},
+		req,
 	)
+
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -806,15 +889,21 @@ func TestService_CreateBlock_RepositoryError(t *testing.T) {
 
 	service := NewService(repo)
 
+	startAt := time.Now().Add(24 * time.Hour)
+	endAt := startAt.Add(2 * time.Hour)
+
+	req := CreateAvailabilityBlockRequest{
+		StartAt: startAt.Format(time.RFC3339),
+		EndAt:   endAt.Format(time.RFC3339),
+		Reason:  "personal appointment",
+	}
+
 	block, err := service.CreateBlock(
 		context.Background(),
 		8,
-		CreateAvailabilityBlockRequest{
-			StartAt: "2026-08-10T09:00:00Z",
-			EndAt:   "2026-08-10T17:00:00Z",
-			Reason:  "Personal appointment",
-		},
+		req,
 	)
+	
 	if block != nil {
 		t.Fatalf("expected nil block, got %+v", block)
 	}
