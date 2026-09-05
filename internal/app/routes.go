@@ -30,7 +30,7 @@ import (
 	jobalertsdomain "github.com/rodrigueghenda/jobira/internal/domain/jobalerts"
 	jobinvitationsdomain "github.com/rodrigueghenda/jobira/internal/domain/jobinvitations"
 	jobpulsedomain "github.com/rodrigueghenda/jobira/internal/domain/jobpulse"
-
+	workhistorydomain "github.com/rodrigueghenda/jobira/internal/domain/workhistory"
 	"github.com/rodrigueghenda/jobira/internal/domain/jobs"
 	matchscoredomain "github.com/rodrigueghenda/jobira/internal/domain/matchscore"
 	messagesdomain "github.com/rodrigueghenda/jobira/internal/domain/messages"
@@ -489,6 +489,22 @@ func (a *App) registerRoutes() {
 		clientDashboardHandler,
 		authMiddleware,
 	)
+
+	workHistoryRepo := workhistorydomain.NewSQLRepository(a.DB)
+
+workHistoryService := workhistorydomain.NewService(
+	workHistoryRepo,
+)
+
+workHistoryHandler := workhistorydomain.NewHandler(
+	workHistoryService,
+)
+
+workhistorydomain.RegisterRoutes(
+	a.R,
+	workHistoryHandler,
+	authMiddleware,
+)
 
 }
 
