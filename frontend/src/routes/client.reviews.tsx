@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ClientReviewsPage } from "@/components/jobira/client-extra-pages";
+export const Route = createFileRoute("/client/reviews")({ head: () => ({ meta: [{ title: "Reviews | Jobira" }, { name: "description", content: "Share and review feedback from past Jobira bookings." }, { property: "og:title", content: "Reviews | Jobira" }, { property: "og:description", content: "Share and review feedback from past Jobira bookings." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ClientReviewsPage });

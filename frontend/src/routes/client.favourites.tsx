@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ClientFavouritesPage } from "@/components/jobira/client-extra-pages";
+export const Route = createFileRoute("/client/favourites")({ head: () => ({ meta: [{ title: "Favourites | Jobira" }, { name: "description", content: "View your saved Jobira professionals." }, { property: "og:title", content: "Favourites | Jobira" }, { property: "og:description", content: "View your saved Jobira professionals." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ClientFavouritesPage });

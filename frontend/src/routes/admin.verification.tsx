@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AdminListPage } from "@/components/jobira/admin-extra-pages";
+export const Route = createFileRoute("/admin/verification")({ head: () => ({ meta: [{ title: "Verification | Jobira Admin" }, { name: "description", content: "Review professional verification submissions." }, { property: "og:title", content: "Verification | Jobira Admin" }, { property: "og:description", content: "Review professional verification submissions." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: () => <AdminListPage kind="verification" /> });

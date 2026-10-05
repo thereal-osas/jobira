@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AdminListPage } from "@/components/jobira/admin-extra-pages";
+export const Route = createFileRoute("/admin/bookings")({ head: () => ({ meta: [{ title: "Bookings | Jobira Admin" }, { name: "description", content: "Monitor Jobira bookings and schedules." }, { property: "og:title", content: "Bookings | Jobira Admin" }, { property: "og:description", content: "Monitor Jobira bookings and schedules." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: () => <AdminListPage kind="bookings" /> });

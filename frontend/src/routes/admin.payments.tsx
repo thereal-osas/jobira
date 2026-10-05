@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AdminListPage } from "@/components/jobira/admin-extra-pages";
+export const Route = createFileRoute("/admin/payments")({ head: () => ({ meta: [{ title: "Payments | Jobira Admin" }, { name: "description", content: "Monitor platform transactions and payouts." }, { property: "og:title", content: "Payments | Jobira Admin" }, { property: "og:description", content: "Monitor platform transactions and payouts." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: () => <AdminListPage kind="payments" /> });

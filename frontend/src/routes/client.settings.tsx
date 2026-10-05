@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ClientSettingsPage } from "@/components/jobira/client-extra-pages";
+export const Route = createFileRoute("/client/settings")({ head: () => ({ meta: [{ title: "Settings | Jobira" }, { name: "description", content: "Manage your Jobira account preferences." }, { property: "og:title", content: "Settings | Jobira" }, { property: "og:description", content: "Manage your Jobira account preferences." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ClientSettingsPage });

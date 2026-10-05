@@ -1,0 +1,4 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AdminReputationPage } from "@/components/jobira/admin-extra-pages";
+
+export const Route = createFileRoute("/admin/reputation")({ head: () => ({ meta: [{ title: "Reputation | Jobira Admin" }, { name: "description", content: "Review professional performance and trust signals." }, { property: "og:title", content: "Reputation | Jobira Admin" }, { property: "og:description", content: "Review professional performance and trust signals." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: AdminReputationPage });
