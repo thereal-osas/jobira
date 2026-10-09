@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ClientJobsPage } from "@/components/jobira/client-extra-pages";
+export const Route = createFileRoute("/client/jobs")({ head: () => ({ meta: [{ title: "My Jobs | Jobira" }, { name: "description", content: "Manage your Jobira jobs and applications." }, { property: "og:title", content: "My Jobs | Jobira" }, { property: "og:description", content: "Manage your Jobira jobs and applications." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ClientJobsPage });

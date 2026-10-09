@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AdminSettingsPage } from "@/components/jobira/admin-extra-pages";
+export const Route = createFileRoute("/admin/settings")({ head: () => ({ meta: [{ title: "Settings | Jobira Admin" }, { name: "description", content: "Configure Jobira platform preferences." }, { property: "og:title", content: "Settings | Jobira Admin" }, { property: "og:description", content: "Configure Jobira platform preferences." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: AdminSettingsPage });

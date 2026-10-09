@@ -1,0 +1,29 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { Check, ClipboardList, Download, MoreHorizontal, Search, X } from "lucide-react";
+import { useState } from "react";
+import { MetricGrid, PortalTitle } from "@/components/jobira/portal-shell";
+import { Button } from "@/components/ui/button";
+
+type ApplicationRow = [string, string, string, string, string];
+const applications: ApplicationRow[] = [
+  ["SL", "Sophie Lee", "End of tenancy clean", "London", "Pending"], ["DT", "David Turner", "Regular home clean", "Stratford", "Accepted"], ["AK", "Aisha Khan", "Airbnb turnover", "Canary Wharf", "Pending"], ["RW", "Robert White", "Office cleaning", "Hackney", "Rejected"], ["LH", "Laura Hughes", "Deep clean", "Ilford", "Accepted"], ["TM", "Thomas Miller", "Weekly domestic clean", "Barking", "Pending"], ["NP", "Natalie Phillips", "Post renovation clean", "Romford", "Rejected"],
+];
+
+export const Route = createFileRoute("/admin/applications")({
+  head: () => ({ meta: [{ title: "Applications | Jobira Admin" }, { name: "description", content: "Review and moderate Jobira applications." }, { property: "og:title", content: "Applications | Jobira Admin" }, { property: "og:description", content: "Review and moderate Jobira applications." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ApplicationsPage,
+});
+
+function ApplicationsPage() {
+  const [selected, setSelected] = useState(0);
+  const [states, setStates] = useState<Record<string, string>>({});
+  const application = applications[selected] ?? applications[0];
+  if (!application) return null;
+  const status = states[application[1]] ?? application[4];
+  return <><PortalTitle title="Applications" description="Manage all job applications. Review, moderate and take action." />
+    <MetricGrid items={[{ label: "Total applications", value: "2,431", note: "↑ 18%", icon: ClipboardList, tone: "blue" }, { label: "Pending review", value: "186", note: "↓ 12%", icon: ClipboardList, tone: "orange" }, { label: "Accepted", value: "1,892", note: "↑ 22%", icon: Check }, { label: "Rejected", value: "353", note: "↑ 5%", icon: X, tone: "violet" }]} />
+    <section className="dashboard-card mt-4 p-3"><div className="grid gap-3 md:grid-cols-[1.5fr_repeat(3,1fr)_auto]"><label className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm" placeholder="Search applications..." /></label>{["All jobs", "All statuses", "All types"].map((label) => <select key={label} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option>{label}</option></select>)}<Button variant="outline">Reset</Button></div></section>
+    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_340px]"><section className="dashboard-card overflow-hidden"><div className="flex items-center justify-between border-b border-border p-4"><h2 className="font-display font-semibold">Applications (2,431)</h2><Button variant="outline" size="sm"><Download />Export</Button></div><div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left text-xs"><thead className="bg-muted text-muted-foreground"><tr><th className="px-4 py-3">Applicant</th><th>Job title</th><th>Location</th><th>Status</th><th className="pr-4 text-right">Actions</th></tr></thead><tbody>{applications.map((row, index) => <tr key={row[1]} onClick={() => setSelected(index)} className={index === selected ? "border-t border-border bg-secondary/60" : "border-t border-border hover:bg-muted/50"}><td className="px-4 py-3"><div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[0.65rem] font-bold">{row[0]}</span><strong>{row[1]}</strong></div></td><td>{row[2]}</td><td>{row[3]}</td><td><span className="rounded-sm bg-secondary px-2 py-1">{states[row[1]] ?? row[4]}</span></td><td className="pr-4 text-right"><Button variant="ghost" size="icon" aria-label={`Actions for ${row[1]}`}><MoreHorizontal /></Button></td></tr>)}</tbody></table></div></section>
+      <aside className="dashboard-card h-fit p-5 xl:sticky xl:top-24"><p className="section-kicker">Application details</p><div className="mt-5 flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted font-bold">{application[0]}</span><div><h2 className="font-display font-semibold">{application[1]}</h2><p className="text-xs text-brand-leaf">Verified cleaner · ★ 4.8</p></div></div><div className="my-5 border-y border-border py-4"><h3 className="font-semibold">{application[2]}</h3><p className="mt-1 text-xs text-muted-foreground">{application[3]} · Applied 31 July 2026</p></div><p className="rounded-md bg-muted p-4 text-xs leading-5 text-muted-foreground">Hi, I have experience with this type of cleaning and can start this week. I have my own equipment and products. Please let me know if you have any questions.</p><dl className="mt-5 grid grid-cols-2 gap-3 text-xs"><dt className="text-muted-foreground">Status</dt><dd className="font-semibold">{status}</dd><dt className="text-muted-foreground">Attachments</dt><dd className="font-semibold">3 files</dd></dl><div className="mt-6 grid grid-cols-2 gap-2"><Button onClick={() => setStates((current) => ({ ...current, [application[1]]: "Accepted" }))}><Check />Accept</Button><Button variant="destructive" onClick={() => setStates((current) => ({ ...current, [application[1]]: "Rejected" }))}><X />Reject</Button></div><Button className="mt-2 w-full" variant="outline">Message applicant</Button></aside>
+    </div>
+  </>;
+}

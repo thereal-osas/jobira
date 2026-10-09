@@ -1,0 +1,27 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ArrowRight, CalendarDays, Check, Clock, MapPin, MessageCircle, Star } from "lucide-react";
+import { useState } from "react";
+import { PortalTitle } from "@/components/jobira/portal-shell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
+export const Route = createFileRoute("/client/bookings")({
+  head: () => ({ meta: [{ title: "My Bookings | Jobira" }, { name: "description", content: "View and rebook trusted Jobira professionals." }, { property: "og:title", content: "My Bookings | Jobira" }, { property: "og:description", content: "View and rebook trusted Jobira professionals." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: BookingsPage,
+});
+
+function BookingsPage() {
+  const [tab, setTab] = useState("Past bookings");
+  const [step, setStep] = useState(0);
+  return <><PortalTitle title="My Bookings" description="View, manage and rebook your previous cleanings." />
+    <div className="flex gap-1 border-b border-border">{["Upcoming", "Past bookings", "Cancelled"].map((item) => <Button key={item} variant="ghost" onClick={() => setTab(item)} className={tab === item ? "border-b-2 border-accent text-accent" : "text-muted-foreground"}>{item}</Button>)}</div>
+    <section className="dashboard-card mt-4 grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div className="flex gap-4"><div className="flex h-20 w-24 shrink-0 items-center justify-center rounded-md bg-secondary"><CalendarDays className="text-brand-leaf" /></div><div><span className="rounded-sm bg-soft-green px-2 py-1 text-xs text-brand-leaf">Completed</span><h2 className="mt-2 font-display font-semibold">Regular Home Clean</h2><p className="mt-1 text-xs text-muted-foreground">Mon, 15 Jul 2026 · 10:00–12:00 · 12 Maple Road</p></div></div><div className="flex items-center gap-4"><div className="hidden sm:block"><p className="text-sm font-semibold">Sarah M.</p><p className="text-xs text-muted-foreground">★ 4.9 (128 reviews)</p></div><strong>£60</strong><Button onClick={() => setStep(0)}>Rebook</Button></div></section>
+    <section className="mt-5 grid gap-4 xl:grid-cols-4">{[
+      <div key="details"><span className="section-kicker">1 · Confirm details</span><h2 className="mt-3 font-display font-semibold">Check your booking</h2><div className="mt-5 space-y-3"><Input value="Regular Home Clean" readOnly /><Input type="date" defaultValue="2026-08-12" /><Input value="10:00 – 12:00" readOnly /><Input value="12 Maple Road, E3 4PL" readOnly /><Textarea defaultValue="Same as last time please. Let me know if you need anything." /></div><Button className="mt-4 w-full" onClick={() => setStep(1)}>Continue <ArrowRight /></Button></div>,
+      <div key="review"><span className="section-kicker">2 · Review & confirm</span><h2 className="mt-3 font-display font-semibold">Review your request</h2><div className="mt-6 space-y-4 text-sm"><p className="flex gap-2"><CalendarDays className="h-4 w-4 text-accent" />Regular Home Clean</p><p className="flex gap-2"><Clock className="h-4 w-4 text-accent" />10:00–12:00</p><p className="flex gap-2"><MapPin className="h-4 w-4 text-accent" />12 Maple Road</p><p className="border-t border-border pt-4 font-semibold">Estimated price <span className="float-right">£60</span></p></div><Button className="mt-8 w-full" disabled={step < 1} onClick={() => setStep(2)}>Send request <ArrowRight /></Button></div>,
+      <div key="sent" className="text-center"><span className="section-kicker">3 · Cleaner confirms</span><div className="mx-auto mt-12 flex h-20 w-20 items-center justify-center rounded-full bg-accent/10"><MessageCircle className="h-8 w-8 text-accent" /></div><h2 className="mt-6 font-display font-semibold">{step >= 2 ? "Request sent!" : "Ready to send"}</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Sarah M. will be notified and has up to 2 hours to confirm.</p><Button className="mt-8 w-full" variant="outline" disabled={step < 2} onClick={() => setStep(3)}>Cleaner confirms <ArrowRight /></Button></div>,
+      <div key="confirmed" className="text-center"><span className="section-kicker">4 · Rebooking confirmed</span><div className="mx-auto mt-10 flex h-20 w-20 items-center justify-center rounded-full bg-soft-green"><Check className="h-9 w-9 text-brand-leaf" /></div><h2 className="mt-5 font-display font-semibold">{step >= 3 ? "Booking confirmed!" : "Awaiting confirmation"}</h2><p className="mt-2 text-xs text-muted-foreground">Sarah M. has confirmed your rebooking.</p><div className="mt-6 border-t border-border pt-4 text-left text-xs"><p>Mon, 12 Aug 2026</p><p className="mt-2">10:00–12:00 · £60</p></div><Button className="mt-5 w-full" disabled={step < 3}>View booking <ArrowRight /></Button></div>,
+    ].map((content, index) => <article key={index} className={step >= index ? "dashboard-card p-5" : "dashboard-card p-5 opacity-55"}>{content}</article>)}</section>
+    <section className="mt-4 flex flex-col justify-between gap-4 rounded-md bg-secondary p-5 sm:flex-row sm:items-center"><div className="flex items-center gap-3"><Star className="text-brand-leaf" /><div><p className="text-sm font-semibold">Rebooking a trusted cleaner is faster and easier.</p><p className="text-xs text-muted-foreground">Same great service. Less hassle.</p></div></div><Button variant="outline">Find more cleaners <ArrowRight /></Button></section>
+  </>;
+}
